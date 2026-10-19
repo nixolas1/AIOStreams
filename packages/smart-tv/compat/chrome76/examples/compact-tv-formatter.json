@@ -1,4 +1,0 @@
-{
-  "name": "{stream.resolution::exists[\"{stream.resolution::replace('2160p','4K')}\"||\"{stream.type::title}\"]}{? · {stream.quality::title::replace('Bluray Remux','Remux')}?}{? · {stream.size::sbytes}?}{service.cached[\" · Cached\"||\" · Uncached\"||\"\"]}",
-  "description": "{?{stream.encode}?}{? · {stream.visualTags::sort::join('/')::replace('HDR/HDR','HDR')}?}{? · {stream.audioTags::lsort::join('/')}?}{? {stream.audioChannels::rsort::join('/')}?}\n{?{stream.uLanguages::join('/')} · ?}{addon.name}{? · {stream.releaseGroup}?}{? · {stream.seasonEpisode::join(' ')}?}{stream.seasonPack[\" · Season pack\"||\"\"||\"\"]}{? · {stream.message}?}"
-}

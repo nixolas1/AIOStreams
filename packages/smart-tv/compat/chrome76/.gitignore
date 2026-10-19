@@ -1,8 +1,0 @@
-node_modules/
-downloads/
-__pycache__/
-*.wgt
-*.p12
-*.pem
-*.key
-.env*

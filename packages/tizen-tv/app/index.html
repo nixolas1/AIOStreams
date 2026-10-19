@@ -30,6 +30,10 @@
     var r = e.reason;
     show('rejection: ' + (r && r.stack ? r.stack : r));
   });
+  window.__bootFail = show;
+  setTimeout(function () {
+    if (!window.__booted) show('App did not start within 12 s (script not running). Back exits.');
+  }, 12000);
 })();
 </script>
 </head>

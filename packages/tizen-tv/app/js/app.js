@@ -55,6 +55,7 @@ function wireUnauthorized() {
 }
 
 function hideSplash() {
+  window.__booted = true;
   const splash = document.getElementById('splash');
   if (!splash) return;
   splash.classList.add('gone');

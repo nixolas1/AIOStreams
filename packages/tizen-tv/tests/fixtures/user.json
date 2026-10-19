@@ -1,0 +1,6 @@
+{
+ "Name": "Demo",
+ "Id": "mock-user",
+ "ServerId": "mock-server",
+ "HasPassword": false
+}

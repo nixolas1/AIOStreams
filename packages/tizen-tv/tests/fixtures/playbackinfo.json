@@ -1,0 +1,146 @@
+{
+ "PlaySessionId": "mock-play-session",
+ "MediaSources": [
+  {
+   "Id": "src-1",
+   "Name": "4K · Remux · 42.1 GB · Cached\nHEVC · HDR10 · TrueHD 7.1\nEnglish · Torrentio · FraMeSToR",
+   "Path": "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4",
+   "Protocol": "Http",
+   "Container": "mkv",
+   "Size": 42100000000,
+   "Bitrate": 52000000,
+   "SupportsDirectPlay": true,
+   "SupportsDirectStream": true,
+   "SupportsTranscoding": false,
+   "IsRemote": true,
+   "DefaultAudioStreamIndex": 1,
+   "aiostreams": {
+    "id": "ver-1"
+   },
+   "MediaStreams": [
+    {
+     "Index": 0,
+     "Type": "Video",
+     "Codec": "hevc",
+     "Width": 3840,
+     "Height": 2160,
+     "IsDefault": true,
+     "DisplayTitle": "2160p HEVC"
+    },
+    {
+     "Index": 1,
+     "Type": "Audio",
+     "Codec": "truehd",
+     "Channels": 8,
+     "Language": "eng",
+     "IsDefault": true,
+     "DisplayTitle": "English TRUEHD"
+    },
+    {
+     "Index": 2,
+     "Type": "Subtitle",
+     "Codec": "srt",
+     "Language": "eng",
+     "IsExternal": true,
+     "IsTextSubtitleStream": true,
+     "DisplayTitle": "English (SRT)",
+     "DeliveryMethod": "External"
+    }
+   ]
+  },
+  {
+   "Id": "src-2",
+   "Name": "1080p · WEB-DL · 6.4 GB · Cached\nH264 · DDP5.1\nEnglish · Comet · NTb",
+   "Path": "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4",
+   "Protocol": "Http",
+   "Container": "mp4",
+   "Size": 6400000000,
+   "Bitrate": 9500000,
+   "SupportsDirectPlay": true,
+   "SupportsDirectStream": true,
+   "SupportsTranscoding": false,
+   "IsRemote": true,
+   "DefaultAudioStreamIndex": 1,
+   "aiostreams": {
+    "id": "ver-2"
+   },
+   "MediaStreams": [
+    {
+     "Index": 0,
+     "Type": "Video",
+     "Codec": "h264",
+     "Width": 1920,
+     "Height": 1080,
+     "IsDefault": true,
+     "DisplayTitle": "1080p H264"
+    },
+    {
+     "Index": 1,
+     "Type": "Audio",
+     "Codec": "eac3",
+     "Channels": 6,
+     "Language": "eng",
+     "IsDefault": true,
+     "DisplayTitle": "English EAC3"
+    },
+    {
+     "Index": 2,
+     "Type": "Subtitle",
+     "Codec": "srt",
+     "Language": "eng",
+     "IsExternal": true,
+     "IsTextSubtitleStream": true,
+     "DisplayTitle": "English (SRT)",
+     "DeliveryMethod": "External"
+    }
+   ]
+  },
+  {
+   "Id": "src-3",
+   "Name": "1080p · BluRay · 12.8 GB · Uncached\nHEVC · DTS-HD MA 5.1\nEnglish · MediaFusion · SPARKS",
+   "Path": null,
+   "Protocol": "Http",
+   "Container": "mkv",
+   "Size": 12800000000,
+   "Bitrate": 18000000,
+   "SupportsDirectPlay": true,
+   "SupportsDirectStream": true,
+   "SupportsTranscoding": false,
+   "IsRemote": true,
+   "DefaultAudioStreamIndex": 1,
+   "aiostreams": {
+    "id": "ver-3"
+   },
+   "MediaStreams": [
+    {
+     "Index": 0,
+     "Type": "Video",
+     "Codec": "hevc",
+     "Width": 1920,
+     "Height": 1080,
+     "IsDefault": true,
+     "DisplayTitle": "1080p HEVC"
+    },
+    {
+     "Index": 1,
+     "Type": "Audio",
+     "Codec": "dts",
+     "Channels": 6,
+     "Language": "eng",
+     "IsDefault": true,
+     "DisplayTitle": "English DTS"
+    },
+    {
+     "Index": 2,
+     "Type": "Subtitle",
+     "Codec": "srt",
+     "Language": "eng",
+     "IsExternal": true,
+     "IsTextSubtitleStream": true,
+     "DisplayTitle": "English (SRT)",
+     "DeliveryMethod": "External"
+    }
+   ]
+  }
+ ]
+}

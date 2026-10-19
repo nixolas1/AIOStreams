@@ -1,0 +1,190 @@
+/* AIOStreams TV design system. Fixed 1920x1080 canvas, px sizes everywhere.
+ * Adapted from samsucks (https://github.com/rfaile313/samsucks), GPL-3.0 (tokens, nav, row, tile, ring, focus styles).
+ *
+ * Chrome 76 rules (enforced by scripts/check-legacy.mjs): no flex/grid gap,
+ * aspect-ratio, inset, :focus-visible, content-visibility, max()/min()/clamp(),
+ * backdrop-filter. Animate only transform and opacity; never animate box-shadow. */
+
+@font-face { font-family: 'Inter'; font-weight: 400; font-display: swap; src: url(../fonts/inter-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 500; font-display: swap; src: url(../fonts/inter-latin-500-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 600; font-display: swap; src: url(../fonts/inter-latin-600-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 700; font-display: swap; src: url(../fonts/inter-latin-700-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Barlow Condensed'; font-weight: 600; font-display: swap; src: url(../fonts/barlow-condensed-latin-600-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Barlow Condensed'; font-weight: 700; font-display: swap; src: url(../fonts/barlow-condensed-latin-700-normal.woff2) format('woff2'); }
+
+:root {
+  --bg: #0B0D12;
+  --raised: #181B23;
+  --accent: #FF4C42;
+  --coral: #FF4C42;
+  --text: #FFF7E6;
+  --cream: #FFF7E6;
+  --dim: rgba(255, 247, 230, 0.62);
+  --faint: rgba(255, 247, 230, 0.10);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --display: 'Barlow Condensed', 'SamsungOneUI', sans-serif;
+  --body: 'Inter', 'SamsungOneUI', sans-serif;
+  --safe: 96px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 1920px; height: 1080px; overflow: hidden;
+  background: var(--bg); color: var(--text);
+  font-family: var(--body);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none; user-select: none;
+}
+#app { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; }
+
+/* Video plays on a plane beneath the web layer, so everything must be see-through. */
+html.playing, html.playing body, html.playing #app { background: transparent; }
+html.playing .ambience { display: none; }
+
+.hidden { display: none !important; }
+
+#splash {
+  position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; z-index: 50;
+  background: var(--bg); transition: opacity 350ms ease; will-change: opacity;
+}
+#splash .splash-mark {
+  position: absolute; left: 0; top: 480px; width: 1920px; text-align: center;
+  font: 700 96px/1 var(--display); letter-spacing: 0.02em;
+}
+#splash.gone { opacity: 0; }
+
+.screen { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; overflow: hidden; }
+
+/* placeholder / generic text */
+.ph-title { position: absolute; left: 96px; top: 400px; font: 700 96px/1 var(--display); }
+.ph-sub { position: absolute; left: 96px; top: 520px; font: 500 28px var(--body); color: var(--dim); }
+
+/* ---------- focus primitives ---------- */
+
+.ring {
+  position: absolute; top: 0; left: 0;
+  border: 5px solid var(--accent); border-radius: 16px;
+  box-shadow: 0 0 36px rgba(255, 76, 66, 0.45);
+  opacity: 0; pointer-events: none;
+  will-change: transform, opacity;
+  transition: opacity 200ms ease, transform 220ms var(--ease);
+}
+.ring.on { opacity: 1; }
+
+.btn {
+  display: flex; align-items: center; justify-content: center;
+  height: 72px; padding: 0 36px; border-radius: 36px;
+  font: 600 28px/1 var(--body); color: var(--text);
+  background: var(--faint); white-space: nowrap;
+}
+.btn svg { width: 28px; height: 28px; margin-right: 14px; }
+.btn.focus { background: var(--cream); color: var(--bg); }
+
+.pill {
+  display: flex; align-items: center; justify-content: center;
+  height: 52px; padding: 0 26px; border-radius: 26px;
+  font: 600 24px/1 var(--body); color: var(--dim); white-space: nowrap;
+}
+.pill.current { color: var(--text); background: var(--faint); }
+.pill.focus { background: var(--cream); color: var(--bg); }
+
+.chip {
+  display: inline-block; height: 40px; padding: 0 18px; margin-right: 10px; border-radius: 20px;
+  font: 500 22px/40px var(--body); color: var(--text); background: var(--faint);
+  vertical-align: top;
+}
+.chip.focus { background: var(--cream); color: var(--bg); }
+
+/* ---------- top bar / nav ---------- */
+
+.topbar {
+  position: absolute; top: 40px; left: 96px; right: 96px; height: 88px;
+  display: flex; align-items: center;
+}
+.brand { display: flex; align-items: center; flex-shrink: 0; }
+.brand-mark { width: 56px; height: 56px; display: block; border-radius: 14px; background: var(--accent); }
+.brand-word { margin-left: 16px; font: 700 40px/1 var(--display); letter-spacing: 0.02em; }
+.nav { display: flex; align-items: center; height: 88px; margin-left: 72px; flex: 1 1 auto; min-width: 0; }
+.nav-item {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  height: 52px; padding: 0 24px; margin-right: 6px; border-radius: 26px;
+  font: 600 26px/1 var(--body); color: var(--dim); white-space: nowrap;
+}
+.nav-item.current { color: var(--text); }
+.nav-item.current::after {
+  content: ''; position: absolute; left: 50%; bottom: -10px; width: 6px; height: 6px;
+  margin-left: -3px; border-radius: 3px; background: var(--accent);
+}
+.nav-item.focus { background: var(--cream); color: var(--bg); }
+.nav-item.focus::after { display: none; }
+.nav-sep { width: 2px; height: 28px; margin: 0 14px 0 8px; border-radius: 1px; background: rgba(255, 247, 230, 0.18); }
+.topbar-who { margin-left: auto; flex-shrink: 0; font: 500 22px var(--body); color: var(--dim); white-space: nowrap; }
+
+/* ---------- rows ---------- */
+
+.row { position: absolute; top: 0; left: 0; width: 1920px; will-change: transform, opacity; transition: opacity 250ms ease; }
+.row:not(.active) { opacity: 0.5; }
+.row.above { opacity: 0; }
+.row-title { height: 52px; margin-left: 96px; font: 600 34px/52px var(--display); letter-spacing: 0.02em; color: var(--text); }
+.row-clip { position: relative; width: 1920px; }
+.row-track { position: absolute; top: 12px; left: 96px; will-change: transform; transition: transform 260ms var(--ease); }
+
+/* ---------- tiles ---------- */
+/* Kinds: wide 400x225, poster 220x330, episode 384x216, grid 216x324.
+ * The frame size sets the kind; the caption sits below the frame. */
+
+.tile { position: absolute; top: 0; left: 0; }
+.tile-frame { position: relative; border-radius: 10px; overflow: hidden; background: var(--raised); }
+.tile-wide .tile-frame { width: 400px; height: 225px; }
+.tile-poster .tile-frame { width: 220px; height: 330px; }
+.tile-episode .tile-frame { width: 384px; height: 216px; }
+.tile-grid .tile-frame { width: 216px; height: 324px; }
+.tile-wide { width: 400px; }
+.tile-poster { width: 220px; }
+.tile-episode { width: 384px; }
+.tile-grid { width: 216px; }
+.tile-ph {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: flex-end; padding: 18px;
+  font: 600 28px/1.05 var(--display); color: var(--dim);
+}
+.tile-img {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  object-fit: cover; opacity: 0; transition: opacity 220ms ease;
+}
+.tile-img.in { opacity: 1; }
+.tile-img.in + .tile-ph { visibility: hidden; }
+.tile-img.now, html.fast .tile-img { transition: none; }
+.tile-bar {
+  position: absolute; left: 12px; right: 12px; bottom: 12px; height: 6px;
+  border-radius: 3px; background: rgba(0, 0, 0, 0.6); overflow: hidden;
+}
+.tile-bar i { display: block; height: 100%; background: var(--accent); transform-origin: 0 0; }
+.tile-badge {
+  position: absolute; top: 10px; right: 10px; min-width: 36px; height: 36px; padding: 0 10px;
+  border-radius: 18px; background: var(--accent); color: #fff;
+  font: 700 20px/36px var(--body); text-align: center;
+}
+.tile-badge.done { background: rgba(11, 13, 18, 0.78); color: var(--text); }
+.tile-cap {
+  margin-top: 14px; font: 600 22px var(--body); color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tile-sub {
+  margin-top: 4px; font: 400 19px var(--body); color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .ring, html.fast .nav-track {
+  transition-duration: 110ms;
+}
+
+/* ---------- containers used by ui/row, ui/grid, screens ---------- */
+
+.rows-track { position: absolute; top: 0; left: 0; width: 1920px; will-change: transform; transition: transform 300ms var(--ease); }
+.grid { position: absolute; left: 88px; width: 1776px; overflow: hidden; }
+.grid-track { position: absolute; top: 12px; left: 8px; will-change: transform; transition: transform 260ms var(--ease); }
+.grid-row { position: absolute; top: 0; left: 0; will-change: transform; }
+.nav-track { will-change: transform; transition: transform 220ms var(--ease); }
+.ambience { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; background: var(--bg); }

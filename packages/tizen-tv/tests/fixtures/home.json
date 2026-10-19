@@ -1,0 +1,247 @@
+{
+ "resume": [
+  {
+   "Name": "Paper Kingdoms",
+   "ServerId": "mock-server",
+   "Id": "mov00a20f90",
+   "Type": "Movie",
+   "ProductionYear": 2022,
+   "PremiereDate": "2022-05-17T00:00:00.0000000Z",
+   "OfficialRating": "R",
+   "CommunityRating": 7.7,
+   "Genres": [
+    "Sci-Fi",
+    "Action"
+   ],
+   "Overview": "Paper Kingdoms follows an unlikely crew through a season they will not forget. Loyalties are tested, old debts come due, and nothing about the next move is simple. A mock summary long enough to wrap onto several lines of the detail screen so the clamp can be checked on a real TV.",
+   "ImageTags": {
+    "Primary": "t3",
+    "Logo": "t1"
+   },
+   "BackdropImageTags": [
+    "t3"
+   ],
+   "UserData": {
+    "PlaybackPositionTicks": 1800000000,
+    "PlayedPercentage": 41.6,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false
+   },
+   "IsFolder": false,
+   "ProviderIds": {
+    "Tmdb": "100003"
+   },
+   "RemoteTrailers": [
+    {
+     "Url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+     "Name": "Trailer"
+    }
+   ],
+   "kind": "movie",
+   "RunTimeTicks": 63600000000
+  },
+  {
+   "Name": "Episode 3",
+   "ServerId": "mock-server",
+   "Id": "ep-ser00adc81f-s1e3",
+   "Type": "Episode",
+   "SeriesId": "ser00adc81f",
+   "SeriesName": "Signal Fire",
+   "SeasonId": "se-ser00adc81f-1",
+   "ParentIndexNumber": 1,
+   "IndexNumber": 3,
+   "ProductionYear": 2015,
+   "RunTimeTicks": 27000000000,
+   "CommunityRating": 8.1,
+   "Overview": "Mock episode 3 of Signal Fire.",
+   "ImageTags": {
+    "Primary": "t1"
+   },
+   "ParentBackdropImageTags": [
+    "t1"
+   ],
+   "ParentLogoImageTag": "t1",
+   "UserData": {
+    "PlaybackPositionTicks": 600000000,
+    "PlayedPercentage": 22.2,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false
+   }
+  },
+  {
+   "Name": "Episode 5",
+   "ServerId": "mock-server",
+   "Id": "ep-ani00b9fc6a-s1e5",
+   "Type": "Episode",
+   "SeriesId": "ani00b9fc6a",
+   "SeriesName": "Crimson Lantern",
+   "SeasonId": "se-ani00b9fc6a-1",
+   "ParentIndexNumber": 1,
+   "IndexNumber": 5,
+   "ProductionYear": 2009,
+   "RunTimeTicks": 27000000000,
+   "CommunityRating": 8.1,
+   "Overview": "Mock episode 5 of Crimson Lantern.",
+   "ImageTags": {
+    "Primary": "t1"
+   },
+   "ParentBackdropImageTags": [
+    "t1"
+   ],
+   "ParentLogoImageTag": "t1",
+   "UserData": {
+    "PlaybackPositionTicks": 1080000000,
+    "PlayedPercentage": 66.7,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false
+   }
+  }
+ ],
+ "nextUp": [
+  {
+   "Name": "Episode 1",
+   "ServerId": "mock-server",
+   "Id": "ep-ser00ade70e-s2e1",
+   "Type": "Episode",
+   "SeriesId": "ser00ade70e",
+   "SeriesName": "The Ferryman",
+   "SeasonId": "se-ser00ade70e-2",
+   "ParentIndexNumber": 2,
+   "IndexNumber": 1,
+   "ProductionYear": 2013,
+   "RunTimeTicks": 27000000000,
+   "CommunityRating": 8.1,
+   "Overview": "Mock episode 1 of The Ferryman.",
+   "ImageTags": {
+    "Primary": "t1"
+   },
+   "ParentBackdropImageTags": [
+    "t1"
+   ],
+   "ParentLogoImageTag": "t1",
+   "UserData": {
+    "PlaybackPositionTicks": 0,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false
+   }
+  },
+  {
+   "Name": "Episode 2",
+   "ServerId": "mock-server",
+   "Id": "ep-ani00ba3a48-s1e2",
+   "Type": "Episode",
+   "SeriesId": "ani00ba3a48",
+   "SeriesName": "Iron Blossom",
+   "SeasonId": "se-ani00ba3a48-1",
+   "ParentIndexNumber": 1,
+   "IndexNumber": 2,
+   "ProductionYear": 2024,
+   "RunTimeTicks": 27000000000,
+   "CommunityRating": 8.1,
+   "Overview": "Mock episode 2 of Iron Blossom.",
+   "ImageTags": {
+    "Primary": "t1"
+   },
+   "ParentBackdropImageTags": [
+    "t1"
+   ],
+   "ParentLogoImageTag": "t1",
+   "UserData": {
+    "PlaybackPositionTicks": 0,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false
+   }
+  },
+  {
+   "Name": "Episode 6",
+   "ServerId": "mock-server",
+   "Id": "ep-ser00ae43db-s1e6",
+   "Type": "Episode",
+   "SeriesId": "ser00ae43db",
+   "SeriesName": "Roundhouse",
+   "SeasonId": "se-ser00ae43db-1",
+   "ParentIndexNumber": 1,
+   "IndexNumber": 6,
+   "ProductionYear": 2012,
+   "RunTimeTicks": 27000000000,
+   "CommunityRating": 8.1,
+   "Overview": "Mock episode 6 of Roundhouse.",
+   "ImageTags": {
+    "Primary": "t1"
+   },
+   "ParentBackdropImageTags": [
+    "t1"
+   ],
+   "ParentLogoImageTag": "t1",
+   "UserData": {
+    "PlaybackPositionTicks": 0,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false
+   }
+  }
+ ],
+ "upcoming": [
+  {
+   "Name": "Episode 4",
+   "ServerId": "mock-server",
+   "Id": "ep-ser00ae05fd-s3e4",
+   "Type": "Episode",
+   "SeriesId": "ser00ae05fd",
+   "SeriesName": "Common Ground",
+   "SeasonId": "se-ser00ae05fd-3",
+   "ParentIndexNumber": 3,
+   "IndexNumber": 4,
+   "ProductionYear": 2024,
+   "RunTimeTicks": 27000000000,
+   "CommunityRating": 8.1,
+   "Overview": "Mock episode 4 of Common Ground.",
+   "ImageTags": {
+    "Primary": "t1"
+   },
+   "ParentBackdropImageTags": [
+    "t1"
+   ],
+   "ParentLogoImageTag": "t1",
+   "UserData": {
+    "PlaybackPositionTicks": 0,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false
+   }
+  },
+  {
+   "Name": "Episode 1",
+   "ServerId": "mock-server",
+   "Id": "ep-ani00b9dd7b-s2e1",
+   "Type": "Episode",
+   "SeriesId": "ani00b9dd7b",
+   "SeriesName": "Skybound Chronicle",
+   "SeasonId": "se-ani00b9dd7b-2",
+   "ParentIndexNumber": 2,
+   "IndexNumber": 1,
+   "ProductionYear": 2008,
+   "RunTimeTicks": 27000000000,
+   "CommunityRating": 8.1,
+   "Overview": "Mock episode 1 of Skybound Chronicle.",
+   "ImageTags": {
+    "Primary": "t1"
+   },
+   "ParentBackdropImageTags": [
+    "t1"
+   ],
+   "ParentLogoImageTag": "t1",
+   "UserData": {
+    "PlaybackPositionTicks": 0,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false
+   }
+  }
+ ]
+}

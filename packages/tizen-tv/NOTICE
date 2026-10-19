@@ -1,0 +1,27 @@
+AIOStreams TV (packages/tizen-tv)
+
+This package is part of AIOStreams (AGPL-3.0). Parts of its architecture and
+code are adapted from samsucks, https://github.com/rfaile313/samsucks,
+licensed GPL-3.0. GPLv3 section 13 permits combining the two works. Each adapted
+file carries the header comment
+  "Adapted from samsucks (https://github.com/rfaile313/samsucks), GPL-3.0".
+
+Adapted from samsucks (raw files at the HEAD of its default branch):
+  app/js/input.js            rAF-coalesced remote input, html.fast, text-input passthrough
+  app/js/router.js           screen stack with hidden-but-mounted screens
+  app/js/platform/tizen.js   key map, key registration, exit, screensaver
+  app/js/util/dom.js         no-op-skipping DOM write helpers (h() signature changed)
+  app/js/util/store.js       localStorage JSON wrapper (prefix changed)
+  app/js/util/format.js      meta-line/duration helpers (reworked for Jellyfin DTOs)
+  app/css/app.css            design tokens, nav, row, tile, ring, focus styles
+Later phases will add (and list here when they do): ui/row.js, ui/grid.js,
+ui/tile.js, ui/images.js, ui/backdrop.js, screens layouts.
+
+Not adapted: branding. There is no "SamSUCKS" mascot or wordmark here.
+
+Fonts (SIL Open Font License 1.1; license texts in app/fonts/):
+  Inter              (c) The Inter Project Authors, https://github.com/rsms/inter
+  Barlow Condensed   (c) The Barlow Project Authors, https://github.com/jpt/barlow
+Files come from @fontsource/inter@5.0.18 and @fontsource/barlow-condensed@5.0.13.
+
+app/icon.png is the AIOStreams Tizen icon copied from packages/smart-tv/tizen/icon.png.

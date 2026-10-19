@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AIOStreams TV</title>
+<link rel="stylesheet" href="css/app.css">
+<script>
+/* Classic script: a TV has no console, so print uncaught errors on screen. */
+(function () {
+  var box = null;
+  function show(msg) {
+    try {
+      if (!box) {
+        box = document.createElement('pre');
+        box.id = 'errbox';
+        box.style.cssText = 'position:fixed;left:24px;right:24px;bottom:24px;max-height:360px;overflow:hidden;z-index:9999;margin:0;padding:16px;background:rgba(120,0,0,.92);color:#fff;font:20px/1.3 monospace;white-space:pre-wrap';
+        (document.body || document.documentElement).appendChild(box);
+      }
+      box.textContent = (box.textContent + '\n' + msg).slice(-1500);
+      window.__errors = (window.__errors || []).concat([String(msg)]);
+    } catch (e) {}
+  }
+  window.addEventListener('error', function (e) {
+    show((e.message || 'error') + (e.filename ? ' @ ' + String(e.filename).split('/').slice(-2).join('/') + ':' + e.lineno : ''));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason;
+    show('rejection: ' + (r && r.stack ? r.stack : r));
+  });
+})();
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="splash"><div class="splash-mark">AIOStreams</div></div>
+<script src="$WEBAPIS/webapis/webapis.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

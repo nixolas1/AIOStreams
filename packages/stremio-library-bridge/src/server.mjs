@@ -65,6 +65,7 @@ export function createServer(config, deps = {}) {
     timeoutMs = 15_000,
     maxItems = 2000,
     maxWatchlist = 5000,
+    resumeMaxAgeDays = 120,
   } = config;
   const log = deps.log ?? ((line) => console.log(line));
   const fetchImpl = deps.fetchImpl ?? fetch;
@@ -86,7 +87,11 @@ export function createServer(config, deps = {}) {
           timeoutMs,
           fetchImpl,
         });
-        const payload = mapLibrary(library, { maxItems, maxWatchlist });
+        const payload = mapLibrary(library, {
+          maxItems,
+          maxWatchlist,
+          maxAgeMs: resumeMaxAgeDays * 86_400_000,
+        });
         cached = { at: Date.now(), payload };
         log(
           `stremio fetch ok library=${library.length} items=${payload.items.length} ` +
@@ -171,6 +176,10 @@ function configFromEnv(env) {
     token: env.BRIDGE_TOKEN,
     port: Number(env.PORT) || 7010,
     cacheSeconds: env.CACHE_SECONDS ? Number(env.CACHE_SECONDS) : 60,
+    // 0 keeps every resume point.
+    resumeMaxAgeDays: env.RESUME_MAX_AGE_DAYS
+      ? Number(env.RESUME_MAX_AGE_DAYS)
+      : 120,
     apiBase: env.STREMIO_API || 'https://api.strem.io/api',
   };
 }

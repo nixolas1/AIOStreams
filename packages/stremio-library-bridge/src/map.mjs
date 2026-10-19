@@ -53,7 +53,7 @@ function resumeEntry(item) {
 
 export function mapLibrary(
   library,
-  { maxItems = 2000, maxWatchlist = 5000 } = {}
+  { maxItems = 2000, maxWatchlist = 5000, maxAgeMs = 0, now = Date.now() } = {}
 ) {
   const items = [];
   const watchlist = [];
@@ -64,7 +64,10 @@ export function mapLibrary(
       const w = watchlistEntry(raw);
       if (w) watchlist.push(w);
       const r = resumeEntry(raw);
-      if (r) items.push(r);
+      // Stremio never forgets a half-watched title; an undated one cannot be
+      // shown as recent either.
+      if (r && (!maxAgeMs || (r.at !== undefined && r.at >= now - maxAgeMs)))
+        items.push(r);
     } catch {
       continue;
     }

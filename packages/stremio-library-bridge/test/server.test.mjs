@@ -26,6 +26,8 @@ async function bridge(overrides = {}) {
       token: TOKEN,
       apiBase: `http://127.0.0.1:${stubPort}/api`,
       cacheSeconds: 60,
+      // The fixture dates from 2024; ageing is covered in map.test.mjs.
+      resumeMaxAgeDays: 0,
       ...overrides,
     },
     { log: (l) => logs.push(l) }

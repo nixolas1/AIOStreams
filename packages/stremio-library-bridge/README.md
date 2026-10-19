@@ -32,6 +32,7 @@ Mirrors stremio-core.
 | `BRIDGE_TOKEN` | | required, at least 16 characters; it is the secret URL prefix |
 | `PORT` | `7010` | |
 | `CACHE_SECONDS` | `60` | in-memory cache of the mapped library |
+| `RESUME_MAX_AGE_DAYS` | `120` | Continue Watching entries last played longer ago are dropped; `0` keeps all. Favorites are never aged out |
 | `STREMIO_API` | `https://api.strem.io/api` | override for tests |
 
 ### Getting the auth key
@@ -63,6 +64,7 @@ provides watch state.
 
 ## Limits
 
+- Resume points older than `RESUME_MAX_AGE_DAYS` are left out. Stremio keeps every half-watched title forever, which would flood Continue Watching.
 - Only the last watched video per title has a resume point; Stremio keeps no per-episode position.
 - No per-episode watched history is imported (that needs decoding Stremio's compressed `state.watched` bitfield).
 - Nothing is written back to Stremio.

@@ -89,3 +89,12 @@ test('lists are sorted newest first and capped', () => {
 test('non-array input yields empty lists', () => {
   assert.deepEqual(mapLibrary(null), { items: [], watchlist: [] });
 });
+
+test('resume points older than the cutoff are dropped, favorites kept', () => {
+  const now = Date.parse('2024-03-02T00:00:00.000Z');
+  const aged = mapLibrary(fixture, { maxAgeMs: 30 * 86_400_000, now });
+  assert.ok(aged.items.some((i) => i.metaId === 'tt0111161'));
+  // last played 2024-01-05, outside the 30-day window
+  assert.equal(aged.items.find((i) => i.metaId === 'kitsu:42323'), undefined);
+  assert.equal(aged.watchlist.length, out.watchlist.length);
+});

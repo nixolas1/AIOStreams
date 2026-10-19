@@ -1,0 +1,18 @@
+# Sidecar for the AIOStreams compose project. No ports are published; AIOStreams
+# reaches it at http://stremio-bridge:7010/<BRIDGE_TOKEN>/manifest.json
+services:
+  stremio-bridge:
+    image: node:22-alpine # pin a digest in real use
+    restart: unless-stopped
+    user: node
+    read_only: true
+    command: ["node", "/bridge/src/server.mjs"]
+    env_file: [stremio-bridge.env] # STREMIO_AUTH_KEY, BRIDGE_TOKEN; chmod 600, never commit
+    volumes:
+      - ../vendor/AIOStreams/packages/stremio-library-bridge:/bridge:ro
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:7010/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"

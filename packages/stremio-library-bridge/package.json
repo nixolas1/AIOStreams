@@ -1,0 +1,12 @@
+{
+  "name": "@aiostreams/stremio-library-bridge",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pull-only watch_state addon that imports a Stremio library into AIOStreams.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test 'test/*.test.mjs'"
+  }
+}

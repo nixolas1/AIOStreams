@@ -1,0 +1,17 @@
+[
+  {"_id":"tt0111161","name":"Movie Resume","type":"movie","removed":false,"temp":false,"_ctime":"2024-01-01T00:00:00.000Z","_mtime":"2024-02-01T00:00:00.000Z","state":{"lastWatched":"2024-03-01T00:00:00.000Z","timeOffset":3600000,"duration":8400000,"video_id":"tt0111161","timesWatched":0,"flaggedWatched":0}},
+  {"_id":"tt0068646","name":"Movie Unwatched","type":"movie","removed":false,"temp":false,"_ctime":"2024-01-02T00:00:00.000Z","_mtime":"2024-01-02T00:00:00.000Z","state":{"lastWatched":null,"timeOffset":0,"duration":0,"video_id":null}},
+  {"_id":"tt0903747","name":"Series Resume","type":"series","removed":false,"temp":false,"_ctime":"2024-01-03T00:00:00.000Z","_mtime":"2024-04-01T00:00:00.000Z","state":{"lastWatched":"2024-05-01T00:00:00.000Z","timeOffset":1200000,"duration":2700000,"video_id":"tt0903747:3:11"}},
+  {"_id":"kitsu:42323","name":"Anime Resume","type":"anime","removed":false,"temp":false,"_ctime":"2024-01-04T00:00:00.000Z","_mtime":"2024-01-05T00:00:00.000Z","state":{"lastWatched":null,"timeOffset":600000,"duration":1440000,"video_id":"kitsu:42323:5"}},
+  {"_id":"tt0944947","name":"Removed Series","type":"series","removed":true,"temp":false,"_ctime":"2024-01-06T00:00:00.000Z","_mtime":"2024-01-06T00:00:00.000Z","state":{"lastWatched":"2024-01-06T00:00:00.000Z","timeOffset":500000,"duration":3000000,"video_id":"tt0944947:1:1"}},
+  {"_id":"tt0133093","name":"Temp Movie","type":"movie","removed":true,"temp":true,"_ctime":"2024-01-07T00:00:00.000Z","_mtime":"2024-06-01T00:00:00.000Z","state":{"lastWatched":"2024-06-01T00:00:00.000Z","timeOffset":900000,"duration":8000000,"video_id":"tt0133093"}},
+  {"_id":"yt_id_abc","name":"Other Type","type":"other","removed":false,"temp":false,"_ctime":"2024-01-08T00:00:00.000Z","_mtime":"2024-01-08T00:00:00.000Z","state":{"lastWatched":"2024-01-08T00:00:00.000Z","timeOffset":100000,"duration":200000,"video_id":"yt_id_abc"}},
+  {"_id":"tt0306414","name":"Series No Video","type":"series","removed":false,"temp":false,"_ctime":"2024-01-09T00:00:00.000Z","_mtime":"2024-01-09T00:00:00.000Z","state":{"lastWatched":"2024-01-09T00:00:00.000Z","timeOffset":100000,"duration":200000,"video_id":null}},
+  {"_id":"tt0108778","name":"Series Same Id","type":"series","removed":false,"temp":false,"_ctime":"2024-01-10T00:00:00.000Z","_mtime":"2024-01-10T00:00:00.000Z","state":{"lastWatched":"2024-01-10T00:00:00.000Z","timeOffset":100000,"duration":200000,"video_id":"tt0108778"}},
+  {"_id":"tt0120737","name":"Movie No Video Id","type":"movie","removed":false,"temp":false,"_ctime":"2024-01-11T00:00:00.000Z","_mtime":"2024-01-11T00:00:00.000Z","state":{"lastWatched":null,"timeOffset":300000,"duration":0,"video_id":null}},
+  {"_id":"tt0050083","name":"Channel","type":"channel","removed":false,"temp":false,"_ctime":"2024-01-12T00:00:00.000Z","_mtime":"2024-01-12T00:00:00.000Z","state":{"timeOffset":1000,"video_id":"x"}},
+  null,
+  "garbage",
+  {"name":"No Id","type":"movie"},
+  {"_id":"tt0000001","name":"No State","type":"movie","removed":false,"temp":false,"_ctime":"not a date"}
+]

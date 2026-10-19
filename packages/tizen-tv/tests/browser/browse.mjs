@@ -108,8 +108,8 @@ try {
     items: Array.from(document.querySelectorAll('.topbar .nav-item')).map((e) => e.textContent.trim()),
     word: document.querySelector('.brand-word').textContent.trim(),
   }));
-  assert.deepEqual(bar.items.slice(0, 4), ['Home', 'Movies', 'Series', 'Anime']);
-  assert.equal(bar.items.length, 6);
+  assert.deepEqual(bar.items.slice(0, 5), ['Home', 'Movies', 'Series', 'Anime', 'Library']);
+  assert.equal(bar.items.length, 7);
   assert.ok(/AIOStreams/.test(bar.word));
 
   // rows with images

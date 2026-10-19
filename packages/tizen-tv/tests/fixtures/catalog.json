@@ -8,7 +8,8 @@
    "CollectionType": "movies",
    "IsFolder": true,
    "ImageTags": {},
-   "BackdropImageTags": []
+   "BackdropImageTags": [],
+   "Path": "/aiostreams/movie/tmdb.trending"
   },
   {
    "Name": "Popular Series",
@@ -18,7 +19,8 @@
    "CollectionType": "tvshows",
    "IsFolder": true,
    "ImageTags": {},
-   "BackdropImageTags": []
+   "BackdropImageTags": [],
+   "Path": "/aiostreams/series/tmdb.trending"
   },
   {
    "Name": "Netflix Movies",
@@ -28,7 +30,8 @@
    "CollectionType": "movies",
    "IsFolder": true,
    "ImageTags": {},
-   "BackdropImageTags": []
+   "BackdropImageTags": [],
+   "Path": "/aiostreams/movie/tmdb.netflix"
   },
   {
    "Name": "Anime Kitsu Trending",
@@ -38,7 +41,8 @@
    "CollectionType": "tvshows",
    "IsFolder": true,
    "ImageTags": {},
-   "BackdropImageTags": []
+   "BackdropImageTags": [],
+   "Path": "/aiostreams/anime/kitsu.trending"
   },
   {
    "Name": "Top Rated Movies",
@@ -48,7 +52,8 @@
    "CollectionType": "movies",
    "IsFolder": true,
    "ImageTags": {},
-   "BackdropImageTags": []
+   "BackdropImageTags": [],
+   "Path": "/aiostreams/movie/tmdb.top"
   },
   {
    "Name": "New Anime",
@@ -58,7 +63,18 @@
    "CollectionType": "tvshows",
    "IsFolder": true,
    "ImageTags": {},
-   "BackdropImageTags": []
+   "BackdropImageTags": [],
+   "Path": "/aiostreams/anime/kitsu.airing"
+  },
+  {
+   "Name": "TorBox",
+   "ServerId": "mock-server",
+   "Id": "view-library-torbox",
+   "Type": "CollectionFolder",
+   "IsFolder": true,
+   "ImageTags": {},
+   "BackdropImageTags": [],
+   "Path": "/aiostreams/library/aiostreams::library.torbox"
   }
  ],
  "items": {
@@ -85,6 +101,7 @@
    "mov00a3fe80"
   ],
   "view-popular-series": [
+   "ser00c5f2d7",
    "ser00adc81f",
    "ser00ade70e",
    "ser00ae05fd",
@@ -103,8 +120,7 @@
    "ser00af9820",
    "ser00afb70f",
    "ser00afd5fe",
-   "ser00aff4ed",
-   "ser00b013dc"
+   "ser00aff4ed"
   ],
   "view-netflix-movies": [
    "mov00a2c92a",
@@ -193,6 +209,28 @@
    "ani00ba5937",
    "ani00ba7826",
    "ani00ba9715"
+  ],
+  "view-library-torbox": [
+   "mov00a41d6f",
+   "mov00a43c5e",
+   "mov00a45b4d",
+   "mov00a47a3c",
+   "ser00af7931",
+   "ser00af9820",
+   "ser00afb70f",
+   "mov00a41d6f",
+   "mov00a43c5e",
+   "mov00a45b4d",
+   "mov00a47a3c",
+   "ser00af7931",
+   "ser00af9820",
+   "ser00afb70f",
+   "mov00a41d6f",
+   "mov00a43c5e",
+   "mov00a45b4d",
+   "mov00a47a3c",
+   "ser00af7931",
+   "ser00af9820"
   ]
  },
  "genres": [
@@ -2860,6 +2898,51 @@
    "kind": "anime",
    "ChildCount": 3,
    "Status": "Continuing"
+  },
+  "ser00c5f2d7": {
+   "Name": "Sakura Dormitory Days",
+   "ServerId": "mock-server",
+   "Id": "ser00c5f2d7",
+   "Type": "Series",
+   "ProductionYear": 2022,
+   "PremiereDate": "2022-09-15T00:00:00.0000000Z",
+   "OfficialRating": "TV-MA",
+   "CommunityRating": 7.2,
+   "Genres": [
+    "Animation",
+    "Comedy"
+   ],
+   "Overview": "Sakura Dormitory Days follows an unlikely crew through a season they will not forget. Loyalties are tested, old debts come due, and nothing about the next move is simple. A mock summary long enough to wrap onto several lines of the detail screen so the clamp can be checked on a real TV.",
+   "ImageTags": {
+    "Primary": "t6",
+    "Logo": "t1"
+   },
+   "BackdropImageTags": [
+    "t0"
+   ],
+   "UserData": {
+    "PlaybackPositionTicks": 0,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false
+   },
+   "IsFolder": true,
+   "ProviderIds": {
+    "Tmdb": "100300"
+   },
+   "RemoteTrailers": [
+    {
+     "Url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+     "Name": "Trailer"
+    }
+   ],
+   "kind": "series",
+   "ChildCount": 2,
+   "Status": "Continuing",
+   "OriginalTitle": "桜寮の日々",
+   "ProductionLocations": [
+    "Japan"
+   ]
   }
  }
 }

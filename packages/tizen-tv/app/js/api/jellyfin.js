@@ -8,7 +8,7 @@ import * as session from '../session.js';
 export const FIELDS = [
   'Overview', 'Genres', 'ProductionYear', 'OfficialRating', 'CommunityRating', 'RunTimeTicks',
   'ChildCount', 'ImageTags', 'BackdropImageTags', 'ParentBackdropImageTags', 'ParentLogoImageTag',
-  'UserData', 'PremiereDate', 'RemoteTrailers', 'ProviderIds',
+  'UserData', 'PremiereDate', 'RemoteTrailers', 'ProviderIds', 'OriginalTitle', 'ProductionLocations',
 ].join(',');
 
 // Detail pages also want the streams of the chosen source (subtitles/audio).

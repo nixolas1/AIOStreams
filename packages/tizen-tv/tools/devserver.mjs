@@ -39,7 +39,8 @@ function strip(t) {
 }
 
 export function createServer() {
-  const favorites = new Set();
+  // Seeded so the My list / Library rows have something to show.
+  const favorites = new Set([catalog.items['view-trending-movies'][1], catalog.items['view-popular-series'][2]]);
   const playLog = []; // [{path, body}] of /Sessions/Playing* calls, for tests (never holds tokens)
   const played = new Set();
   const qc = { polls: 0 };
@@ -91,6 +92,7 @@ export function createServer() {
   function handleItems(q) {
     let arr;
     if (q.parentid) arr = viewItems(q.parentid);
+    else if ((q.filters || '').toLowerCase().includes('isplayed')) arr = allTitles().filter((t) => played.has(t.Id));
     else if ((q.filters || '').toLowerCase().includes('isfavorite')) arr = allTitles().filter((t) => favorites.has(t.Id));
     else arr = allTitles();
     if (q.includeitemtypes) {

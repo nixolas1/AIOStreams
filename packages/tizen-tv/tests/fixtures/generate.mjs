@@ -73,25 +73,35 @@ function slice(arr, from, n) {
 }
 
 // CollectionType values are what the real server emits: movies | tvshows | boxsets.
+// A TMDB-tagged anime that shows up in a plain series catalog (the client must filter it out).
+const lookalike = Object.assign(title('series', 'Sakura Dormitory Days', 300), {
+  Genres: ['Animation', 'Comedy'], OriginalTitle: '\u685c\u5bee\u306e\u65e5\u3005', ProductionLocations: ['Japan'],
+});
+// Library items: debrid titles with no catalog metadata beyond the basics.
+const libMovies = movies.slice(20, 24);
+const libSeries = series.slice(14, 17);
+const libraryPool = [...libMovies, ...libSeries];
+
 const views = [
-  { id: 'view-trending-movies', name: 'Trending Movies', type: 'movies', pool: movies, from: 0 },
-  { id: 'view-popular-series', name: 'Popular Series', type: 'tvshows', pool: series, from: 0 },
-  { id: 'view-netflix-movies', name: 'Netflix Movies', type: 'movies', pool: movies, from: 9 },
-  { id: 'view-anime-kitsu-trending', name: 'Anime Kitsu Trending', type: 'tvshows', pool: anime, from: 0 },
-  { id: 'view-top-rated-movies', name: 'Top Rated Movies', type: 'movies', pool: movies, from: 17 },
-  { id: 'view-new-anime', name: 'New Anime', type: 'tvshows', pool: anime, from: 7 },
+  { id: 'view-trending-movies', name: 'Trending Movies', type: 'movies', pool: movies, from: 0, path: 'movie/tmdb.trending' },
+  { id: 'view-popular-series', name: 'Popular Series', type: 'tvshows', pool: [lookalike, ...series], from: 0, path: 'series/tmdb.trending' },
+  { id: 'view-netflix-movies', name: 'Netflix Movies', type: 'movies', pool: movies, from: 9, path: 'movie/tmdb.netflix' },
+  { id: 'view-anime-kitsu-trending', name: 'Anime Kitsu Trending', type: 'tvshows', pool: anime, from: 0, path: 'anime/kitsu.trending' },
+  { id: 'view-top-rated-movies', name: 'Top Rated Movies', type: 'movies', pool: movies, from: 17, path: 'movie/tmdb.top' },
+  { id: 'view-new-anime', name: 'New Anime', type: 'tvshows', pool: anime, from: 7, path: 'anime/kitsu.airing' },
+  { id: 'view-library-torbox', name: 'TorBox', type: undefined, pool: libraryPool, from: 0, path: 'library/aiostreams::library.torbox' },
 ];
 const catalog = {
   views: views.map((v) => ({
     Name: v.name, ServerId: SERVER_ID, Id: v.id, Type: 'CollectionFolder', CollectionType: v.type,
-    IsFolder: true, ImageTags: {}, BackdropImageTags: [],
+    IsFolder: true, ImageTags: {}, BackdropImageTags: [], Path: '/aiostreams/' + v.path,
   })),
   items: {},
   genres: GENRES,
 };
 for (const v of views) catalog.items[v.id] = slice(v.pool, v.from, 20).map((t) => t.Id);
 catalog.titles = {};
-for (const t of [...movies, ...series, ...anime]) catalog.titles[t.Id] = t;
+for (const t of [...movies, ...series, ...anime, lookalike]) catalog.titles[t.Id] = t;
 
 // Resume (one movie, two episodes), NextUp, Upcoming.
 function episode(sr, season, ep, extra) {

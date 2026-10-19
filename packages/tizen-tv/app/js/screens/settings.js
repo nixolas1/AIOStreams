@@ -14,8 +14,8 @@ const ROW_H = 84;
 const HEAD_H = 76;
 const TOP = 210;      // list top (px)
 const VIEW_H = 820;   // visible list height
-const KINDS = ['movie', 'series', 'anime'];
-const KIND_LABEL = { movie: 'Movies', series: 'Series', anime: 'Anime' };
+const KINDS = ['movie', 'series', 'anime', 'library'];
+const KIND_LABEL = { movie: 'Movies', series: 'Series', anime: 'Anime', library: 'Library' };
 // ISO 639-2 codes, as Jellyfin media streams use them.
 export const SUB_LANGS = [
   ['off', 'Off'], ['eng', 'English'], ['nor', 'Norwegian'], ['swe', 'Swedish'], ['dan', 'Danish'],
@@ -24,6 +24,8 @@ export const SUB_LANGS = [
 
 /** Local fallback when api/hubs.js is not available. */
 export function guessKind(view) {
+  const type = /^\/aiostreams\/([^/]+)\//.exec(view.Path || '');
+  if (type && (type[1] === 'library' || type[1] === 'anime')) return type[1];
   if (/anime|kitsu|anilist|mal\b/i.test(view.Name || '') || /anime|kitsu|anilist/i.test(view.Id || '')) return 'anime';
   return view.CollectionType === 'tvshows' ? 'series' : 'movie';
 }

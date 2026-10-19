@@ -23,7 +23,7 @@ const AHEAD = 4;            // rows loaded beyond the focused one
 const SPOT_MS = 9000;
 const STALE_MS = 30000;
 const CACHE_ROWS = 12;      // items per row kept in the first-paint cache
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;   // 3: series rows no longer hold anime
 
 function add(parent, tag, cls) {
   const e = h(tag, cls);
@@ -32,7 +32,7 @@ function add(parent, tag, cls) {
 }
 
 /**
- * opts: {tab: 'home'|'movies'|'series'|'anime', name, kind (hub kind for genre chips; home: null),
+ * opts: {tab: 'home'|'movies'|'series'|'anime'|'library', name, kind (hub kind for genre chips; home: null),
  *        build() -> recipes}
  */
 export function createBrowsePage(opts) {
@@ -298,6 +298,8 @@ export function createBrowsePage(opts) {
     const pos = focusSlot ? slots.indexOf(focusSlot) : 0;
     const upTo = Math.min(slots.length, Math.max(3, pos + AHEAD));
     for (let i = 0; i < upTo; i++) loadSlot(slots[i]);
+    // Spotlight rows feed the hero, so they load even when they sit below the fold.
+    for (let i = upTo; i < slots.length; i++) if (slots[i].recipe.spotlight) loadSlot(slots[i]);
   }
 
   function ensureAll() {

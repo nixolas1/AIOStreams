@@ -130,7 +130,7 @@ try {
       token: !!auth.AccessToken, imgOk: imgOk, resume: resume.Items.length, me: me.Name,
     };
   });
-  assert.equal(api.views.length, 6);
+  assert.equal(api.views.length, 7);
   assert.ok(api.views.includes('Trending Movies:movies') && api.views.includes('Anime Kitsu Trending:tvshows'));
   assert.equal(api.firstCount, 5);
   assert.equal(api.total, 20);

@@ -48,8 +48,9 @@ html.playing .ambience { display: none; }
   position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; z-index: 50;
   background: var(--bg); transition: opacity 350ms ease; will-change: opacity;
 }
+#splash .splash-logo { position: absolute; left: 880px; top: 380px; width: 160px; height: 160px; }
 #splash .splash-mark {
-  position: absolute; left: 0; top: 480px; width: 1920px; text-align: center;
+  position: absolute; left: 0; top: 580px; width: 1920px; text-align: center;
   font: 700 96px/1 var(--display); letter-spacing: 0.02em;
 }
 #splash.gone { opacity: 0; }
@@ -103,8 +104,8 @@ html.playing .ambience { display: none; }
   display: flex; align-items: center;
 }
 .brand { display: flex; align-items: center; flex-shrink: 0; }
-.brand-mark { width: 56px; height: 56px; display: block; border-radius: 14px; background: var(--accent); }
-.brand-word { margin-left: 16px; font: 700 40px/1 var(--display); letter-spacing: 0.02em; }
+.brand-mark { width: 48px; height: 48px; display: block; }
+.brand-word { margin-left: 14px; font: 700 38px/1 var(--display); letter-spacing: 0.02em; }
 .nav { display: flex; align-items: center; height: 88px; margin-left: 72px; flex: 1 1 auto; min-width: 0; }
 .nav-item {
   position: relative; display: flex; align-items: center; justify-content: center;

@@ -14,11 +14,11 @@ import { toast } from '../ui/toast.js';
 import { debounce } from '../util/time.js';
 import { metaLine, clock, episodeLabel } from '../util/format.js';
 import { createSourcesPanel } from './sources.js';
+import { youtubeId, openYouTube } from '../platform/youtube.js';
 
 const TICKS_PER_MS = 10000;
 const SECTION_TOP = 380; // where the active lower section sits once the body has slid up
 const BTN_TOP = 700;
-const YOUTUBE_APP_ID = '111299001912';
 
 const ICONS = {
   play: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M7 4.5v15l13-7.5z"/></svg>',
@@ -162,15 +162,11 @@ export function DetailScreen(args) {
 
   function openTrailer() {
     const trailers = item.RemoteTrailers || [];
-    const url = trailers[0] && trailers[0].Url;
-    if (!url) return;
-    try {
-      const t = window.tizen;
-      const ctl = new t.ApplicationControl('http://tizen.org/appcontrol/operation/view', url, null, null, null);
-      t.application.launchAppControl(ctl, YOUTUBE_APP_ID, function () {}, function () { toast("Couldn't open the trailer", 3500); });
-    } catch (e) {
-      toast('Trailers open in the YouTube app on the TV', 3500);
-    }
+    let id = '';
+    for (let i = 0; i < trailers.length && !id; i++) id = youtubeId(trailers[i] && trailers[i].Url);
+    if (!id) { toast('No YouTube trailer for this title', 3000); return; }
+    toast('Opening trailer in YouTube…', 2500);
+    openYouTube(id).catch(function () { toast("Couldn't open the trailer", 3500); });
   }
 
   async function toggleFavorite() {

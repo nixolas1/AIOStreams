@@ -1,8 +1,8 @@
-// Top bar: logo mark + wordmark, tabs (Home Movies Series Anime), Search and
+// Top bar: logo mark + wordmark, tabs (Home Movies Series Anime Library), Search and
 // Settings icons, signed-in user at the right.
 //
 // createTopbar({current}) -> {el, focus(i), move(dx) -> bool, index(), setActive(bool), select(), current}
-// `current` is 'home' | 'movies' | 'series' | 'anime'. select() on another tab
+// `current` is 'home' | 'movies' | 'series' | 'anime' | 'library'. select() on another tab
 // calls nav.go('openHub', id); Search/Settings call nav.go('openSearch'/'openSettings').
 import { h, toggleClass } from '../util/dom.js';
 import * as nav from '../nav.js';
@@ -13,9 +13,10 @@ export const TABS = [
   { id: 'movies', label: 'Movies' },
   { id: 'series', label: 'Series' },
   { id: 'anime', label: 'Anime' },
+  { id: 'library', label: 'Library' },
 ];
 
-const MARK = '<svg viewBox="0 0 56 56" width="56" height="56"><path d="M21 15.5v25a2 2 0 0 0 3 1.7l20.5-12.5a2 2 0 0 0 0-3.4L24 13.8a2 2 0 0 0-3 1.7z" fill="#FFF7E6"/></svg>';
+export const MARK = '<svg viewBox="160 115 192 192" width="100%" height="100%"><path d="M245 153L198 267" fill="none" stroke="#FFF7E6" stroke-width="76" stroke-linecap="round"/><circle cx="306" cy="261" r="46" fill="#FF4C42"/></svg>';
 const SEARCH = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>';
 const SETTINGS = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.4"/><circle cx="9" cy="17" r="2.4"/></svg>';
 
@@ -26,8 +27,7 @@ export function createTopbar(o) {
   const mark = h('div', 'brand-mark');
   mark.innerHTML = MARK;
   const word = h('div', 'brand-word');
-  word.appendChild(document.createTextNode('AIOStreams '));
-  word.appendChild(h('i', null, 'TV'));
+  word.appendChild(document.createTextNode('AIOStreams'));
   brand.appendChild(mark);
   brand.appendChild(word);
   el.appendChild(brand);

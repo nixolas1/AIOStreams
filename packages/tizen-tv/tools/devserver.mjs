@@ -137,18 +137,51 @@ export function createServer() {
     if (cur) lines.push(cur);
     return lines.slice(0, 3);
   }
+  // Mock art: gradient plus soft shapes, like real key art. Only Primary posters (not episode stills)
+  // carry the title, as a placeholder; Backdrop/Thumb have no text; Logo is a transparent wordmark.
   function svg(id, type) {
     const it = find(id);
-    const name = it ? (it.Type === 'Episode' ? it.SeriesName + ' S' + it.ParentIndexNumber + 'E' + it.IndexNumber : it.Name) : id;
-    const hue = colorOf(it && it.SeriesId ? it.SeriesId : id);
-    const dims = { Primary: [400, 600], Backdrop: [1280, 720], Thumb: [640, 360], Logo: [600, 200] };
+    const name = it ? (it.Type === 'Episode' ? it.SeriesName : it.Name) : id;
+    const key = it && it.SeriesId ? it.SeriesId : id;
+    const hue = colorOf(key);
+    const dims = { Primary: [400, 600], Backdrop: [1280, 720], Thumb: [640, 360], Logo: [800, 310] };
     let [w, h] = dims[type] || [400, 600];
-    if (type === 'Primary' && it && it.Type === 'Episode') [w, h] = [640, 360];
-    const fs = type === 'Logo' ? 64 : Math.round(w / 9);
-    const lines = wrapWords(name, type === 'Primary' ? 12 : 22);
-    const text = lines.map((l, i) => `<text x="${type === 'Logo' ? 0 : w * 0.08}" y="${(type === 'Logo' ? h / 2 : h * 0.62) + i * fs * 1.1}" font-family="Helvetica,Arial,sans-serif" font-weight="700" font-size="${fs}" fill="#fff7e6">${esc(l)}</text>`).join('');
-    const bg = type === 'Logo' ? '' : `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},55%,34%)"/><stop offset="1" stop-color="hsl(${(hue + 50) % 360},60%,14%)"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/>`;
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${bg}${text}</svg>`;
+    const still = type === 'Primary' && it && it.Type === 'Episode';
+    if (still) [w, h] = [640, 360];
+    if (type === 'Logo') {
+      const lines = wrapWords(name, 16).slice(0, 2);
+      const fs = lines.length > 1 ? 120 : 150;
+      const lh = fs * 1.02;
+      const y0 = h / 2 + (fs * 0.36) - ((lines.length - 1) * lh) / 2;
+      const text = lines.map((l, i) => {
+        const tl = Math.min(780, Math.round(l.length * fs * 0.5));
+        return `<text x="0" y="${Math.round(y0 + i * lh)}" textLength="${tl}" lengthAdjust="spacingAndGlyphs" font-family="'Arial Narrow',Helvetica,Arial,sans-serif" font-weight="700" font-size="${fs}" fill="#fff7e6">${esc(l.toUpperCase())}</text>`;
+      }).join('');
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${text}</svg>`;
+    }
+    const h2 = (hue + 50) % 360;
+    const h3 = (hue + 200) % 360;
+    // Deterministic soft shapes derived from the id.
+    let seed = hue * 977 + 13;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const shapes = [];
+    for (let i = 0; i < 4; i++) {
+      const cx = Math.round(rnd() * w);
+      const cy = Math.round(rnd() * h);
+      const r = Math.round((0.25 + rnd() * 0.4) * Math.max(w, h));
+      shapes.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#s${i % 2})" opacity="${(0.35 + rnd() * 0.4).toFixed(2)}"/>`);
+    }
+    const defs = `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},55%,36%)"/><stop offset="1" stop-color="hsl(${h2},60%,14%)"/></linearGradient>` +
+      `<radialGradient id="s0"><stop offset="0" stop-color="hsl(${h3},70%,62%)" stop-opacity="0.9"/><stop offset="1" stop-color="hsl(${h3},70%,62%)" stop-opacity="0"/></radialGradient>` +
+      `<radialGradient id="s1"><stop offset="0" stop-color="hsl(${h2},80%,70%)" stop-opacity="0.8"/><stop offset="1" stop-color="hsl(${h2},80%,70%)" stop-opacity="0"/></radialGradient>` +
+      `<linearGradient id="v" x1="0" y1="0" x2="0" y2="1"><stop offset="0.4" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.55"/></linearGradient></defs>`;
+    let text = '';
+    if (type === 'Primary' && !still) {
+      const fs = Math.round(w / 11);
+      const lines = wrapWords(name, 13);
+      text = lines.map((l, i) => `<text x="${w * 0.08}" y="${h * 0.78 + i * fs * 1.1}" font-family="Helvetica,Arial,sans-serif" font-weight="700" font-size="${fs}" fill="#fff7e6" opacity="0.92">${esc(l)}</text>`).join('');
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${defs}<rect width="${w}" height="${h}" fill="url(#g)"/>${shapes.join('')}<rect width="${w}" height="${h}" fill="url(#v)"/>${text}</svg>`;
   }
 
   async function body(req) {

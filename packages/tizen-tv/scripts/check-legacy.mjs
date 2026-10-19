@@ -28,11 +28,11 @@ async function loadAcorn() {
 // Method / member names newer than Chrome 76.
 const BANNED_MEMBERS = new Set([
   'at', 'replaceAll', 'findLast', 'findLastIndex', 'toSorted', 'toReversed', 'toSpliced', 'with',
-  'hasOwn', 'groupBy', 'any', 'timeout',
+  'hasOwn', 'groupBy', 'any', 'timeout', 'replaceChildren', 'randomUUID',
 ]);
 // "any"/"timeout"/"with" are only banned on specific receivers (below).
 const BANNED_QUALIFIED = { any: 'Promise', timeout: 'AbortSignal', with: null, hasOwn: 'Object', groupBy: null };
-const BANNED_GLOBALS = new Set(['structuredClone', 'AggregateError']);
+const BANNED_GLOBALS = new Set(['structuredClone', 'AggregateError', 'WeakRef', 'FinalizationRegistry']);
 
 export async function lintJs(source, file) {
   const acorn = await loadAcorn();
@@ -80,6 +80,12 @@ const CSS_RULES = [
   [/:(is|where|has)\(/, ':is()/:where()/:has()'],
   [/@container/, '@container'],
   [/transition[^;}]*box-shadow/, 'animated box-shadow'],
+  [/(^|[;{\s])mask(-image|-composite|-size|-position|-repeat|-mode)?\s*:/, 'unprefixed mask (use -webkit-mask-*)'],
+  [/:not\([^)]*,/, ':not() with a selector list'],
+  [/(^|[;{\s])(translate|scale|rotate)\s*:/, 'individual transform properties'],
+  [/overflow(-[xy])?\s*:\s*clip/, 'overflow: clip'],
+  [/color-mix\(|@layer|accent-color|scrollbar-width|text-wrap\s*:|[0-9](dvh|svh|lvh)\b/, 'post-Chrome-76 CSS feature'],
+  [/rgba?\(\s*[0-9.]+%?\s+[0-9.]+%?\s+[0-9.]+/, 'space-separated rgb()'],
 ];
 
 export function lintCss(source, file) {

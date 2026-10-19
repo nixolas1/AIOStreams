@@ -67,10 +67,7 @@ function titleFor(item, kind) {
 
 function subFor(item, kind) {
   if (item.Type === 'Episode') {
-    if (kind === 'episode') {
-      const d = duration(item.RunTimeTicks);
-      return episodeLabel(item) + (d ? '  ·  ' + d : '');
-    }
+    if (kind === 'episode') return duration(item.RunTimeTicks);
     return episodeLabel(item) + (item.Name ? '  ' + item.Name : '');
   }
   if (item.Type === 'Season') return item.ChildCount ? item.ChildCount + ' episodes' : '';
@@ -145,7 +142,9 @@ export function fillTile(tile, item, kind) {
   }
 
   if (t.cap) {
-    setText(t.cap, kind === 'episode' ? (item.Name || '') : titleFor(item, kind));
+    let cap = titleFor(item, kind);
+    if (kind === 'episode') cap = (item.IndexNumber != null ? 'E' + item.IndexNumber + ' · ' : '') + (item.Name || '');
+    setText(t.cap, cap);
     setText(t.sub, subFor(item, kind));
   }
 }

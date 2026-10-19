@@ -68,6 +68,7 @@
 .row-chips:not(.active) .chip-pill { color: var(--dim); }
 
 /* ---------- library ---------- */
+.lib-empty { top: 420px; }
 .lib-head { position: absolute; top: 140px; left: 96px; right: 96px; display: flex; align-items: center; height: 60px; }
 .library .lib-head { top: 56px; height: 80px; }
 .lib-title { font: 700 76px/1 var(--display); letter-spacing: 0.005em; }

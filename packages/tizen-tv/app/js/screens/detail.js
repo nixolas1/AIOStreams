@@ -363,7 +363,10 @@ export function DetailScreen(args) {
     }
     // Long season lists scroll so the current pill stays inside the 1728 px strip.
     const cur = seasons[seasonIdx] && seasons[seasonIdx]._el;
-    if (cur) setTransform(seasonsTrack, 'translateX(' + -Math.max(0, cur.offsetLeft + cur.offsetWidth - 1728 + 60) + 'px)');
+    if (cur) {
+      if (cur._right == null) cur._right = cur.offsetLeft + cur.offsetWidth; // pills never move: measure once
+      setTransform(seasonsTrack, 'translateX(' + -Math.max(0, cur._right - 1728 + 60) + 'px)');
+    }
     if (episodesRow) episodesRow.setActive(zone === 'episodes' && !panelOpen);
     if (similarRow) similarRow.setActive(zone === 'similar' && !panelOpen);
     const shift = zone === 'buttons' ? 0 : Math.max(0, sectionTop(zone) - SECTION_TOP);

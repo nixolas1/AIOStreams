@@ -150,7 +150,7 @@ export function createBrowsePage(opts) {
   }
 
   function spinSpot() {
-    if (!shown || spot.length < 2) return;
+    if (!shown || document.hidden || spot.length < 2) return;
     if (moved && zone !== 'nav') return;
     spotIndex = (spotIndex + 1) % spot.length;
     showHero(spot[spotIndex]);
@@ -188,6 +188,7 @@ export function createBrowsePage(opts) {
     if (viewsFailed) return 'Could not reach the server. Press OK to retry.';
     const pending = slots.some(function (s) { return s.state === 'idle' || s.state === 'loading'; });
     if (pending || !slots.length) return '';
+    if (slots.every(function (s) { return s.state === 'error'; })) return 'Could not load these rows. Press OK to retry.';
     return 'Nothing here yet. Add catalogs in the AIOStreams configuration.';
   }
 
@@ -236,6 +237,7 @@ export function createBrowsePage(opts) {
       toasted = true;
       toast('Could not load ' + (s.recipe.title || 'a row'));
     }
+    if (s.id !== 'views' && !visible().length) setText(empty, emptyText());
   }
 
   function loadChips(s) {
@@ -403,7 +405,7 @@ export function createBrowsePage(opts) {
       switch (action) {
         case 'left': topbar.move(-1); return true;
         case 'right': topbar.move(1); return true;
-        case 'down': if (vis.length) setZone('rows'); return true;
+        case 'down': setZone('rows'); return true;
         case 'enter': topbar.select(); return true;
         case 'back':
           if (tab !== 'home') { nav.go('openHub', 'home'); return true; }
@@ -413,7 +415,7 @@ export function createBrowsePage(opts) {
     }
     const s = vis[rowIndex];
     if (!s) {
-      if (action === 'up') { setZone('nav'); return true; }
+      if (action === 'up' || action === 'back') { setZone('nav'); return true; }
       if (action === 'enter') {
         viewsFailed = false;
         slots.forEach(function (x) { if (x.state === 'error') x.state = 'idle'; });

@@ -12,7 +12,7 @@ import { createPlayer } from '../platform/player.js';
 import { setScreenSaver, isUhdPanel } from '../platform/tizen.js';
 import { episodeLabel } from '../util/format.js';
 import { toast } from '../ui/toast.js';
-import { pickSource, nextSource, nameLines, isUhd } from '../player/pick.js';
+import { pickSource, nextSource, nameLines, isUhd, rankSources } from '../player/pick.js';
 import { parseCues, CueTrack } from '../player/subtitles.js';
 import { Seeker, COMMIT_MS } from '../player/seek.js';
 import { createOsd } from '../player/osd.js';
@@ -200,6 +200,11 @@ export function PlayerScreen(args) {
       const wanted = opts.sourceId || (startMs > 0 ? store.get(lastSourceKey(item.Id), null) : null);
       let src = null;
       for (let i = 0; i < sources.length; i++) if (wanted && sources[i].Id === wanted) src = sources[i];
+      if (!src && store.get('pref4k', false) === true) {
+        // Settings > Prefer 4K: the first clean playable UHD version, else the usual pick.
+        const ranked = rankSources(sources);
+        for (let i = 0; i < ranked.length && !src; i++) if (ranked[i].playable && !ranked[i].warn && isUhd(ranked[i].source)) src = ranked[i].source;
+      }
       if (!src) src = pickSource(sources);
       loadNext();
       await openSource(src, startMs);
@@ -340,7 +345,8 @@ export function PlayerScreen(args) {
 
   function autoSubtitle() {
     if (subTouched || subId !== 'off') return;
-    const lang = store.get('player.subLang', 'off');
+    let lang = store.get('player.subLang', null);
+    if (lang == null) lang = store.get('subLang', 'off'); // Settings default until the viewer picks one
     if (!lang || lang === 'off') return;
     for (let i = 0; i < subList.length; i++) {
       if (sameLang(subList[i].lang, lang)) { applySubtitle(subList[i]); return; }
@@ -476,6 +482,8 @@ export function PlayerScreen(args) {
     started = false;
     position = duration;
     clearTimeout(commitTimer);
+    clearInterval(subTimer);
+    osd.setSubtitle('');
     reportStop();
     player.close();
     osd.setBuffering(false);
@@ -483,16 +491,19 @@ export function PlayerScreen(args) {
     if (item.Type === 'Episode' && !nextLoaded) await loadNext();
     if (!alive) return;
     if (!nextItem) { exit(); return; }
+    // Settings > Autoplay next episode off: show the card but wait for OK instead of counting down.
+    const auto = store.get('autoplayNext', true) !== false;
     let left = UPNEXT_SECONDS;
     const render = function () {
       upnext.textContent = '';
-      upnext.appendChild(h('div', 'upnext-label', 'Up next in ' + left));
+      upnext.appendChild(h('div', 'upnext-label', auto ? 'Up next in ' + left : 'Up next'));
       upnext.appendChild(h('div', 'upnext-title', (episodeLabel(nextItem) ? episodeLabel(nextItem) + '   ' : '') + (nextItem.Name || '')));
       upnext.appendChild(h('div', 'upnext-series', nextItem.SeriesName || ''));
       upnext.appendChild(h('div', 'upnext-hint', 'OK  Play now   ·   Back  Exit'));
     };
     render();
     upnext.classList.remove('hidden');
+    if (!auto) return;
     upnextTimer = setInterval(function () {
       left--;
       if (left <= 0) playNext();

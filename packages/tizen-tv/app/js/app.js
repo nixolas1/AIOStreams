@@ -14,6 +14,8 @@ import { PlayerScreen } from './screens/player.js';
 import { SearchScreen } from './screens/search.js';
 import { SettingsScreen } from './screens/settings.js';
 import { initHud } from './ui/hud.js';
+import { toast } from './ui/toast.js';
+import * as client from './api/client.js';
 
 // Desktop only: scale the fixed 1920x1080 canvas into the browser window.
 function fitWindow() {
@@ -42,6 +44,16 @@ function wireNav() {
   nav.register('openConnect', function () { return router.reset(ConnectScreen({})); });
 }
 
+// A 401 anywhere (expired or revoked token) signs out and returns to Connect; the server stays filled in.
+function wireUnauthorized() {
+  client.setUnauthorizedHandler(function () {
+    if (!session.isSignedIn()) return; // Quick Connect polling and sign-in answer 401 while signed out
+    session.signOut();
+    router.reset(ConnectScreen({}));
+    toast('Your sign-in expired. Please connect again.', 4000);
+  });
+}
+
 function hideSplash() {
   const splash = document.getElementById('splash');
   if (!splash) return;
@@ -65,6 +77,7 @@ export function start() {
   try { initHud(); } catch (e) { /* ignore */ }
   router.init(document.getElementById('app'), null);
   wireNav();
+  wireUnauthorized();
   if (session.isSignedIn()) router.reset(HomeScreen({}));
   else router.reset(ConnectScreen({}));
   // Let the first paint land before fading the splash.

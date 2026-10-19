@@ -44,6 +44,7 @@ export function LibraryScreen(args) {
   const focusInfo = add(el, 'div', 'lib-focus');
   const hint = add(el, 'div', 'lib-hint');
   hint.innerHTML = '<i class="key-yellow"></i>Sort';
+  const empty = add(el, 'div', 'browse-empty lib-empty');
 
   let sortIndex = 0;
   let pages = {};      // page -> 'loading' | 'done'
@@ -92,6 +93,7 @@ export function LibraryScreen(args) {
       const got = hubs.tagItems((r && r.Items) || [], kind);
       for (let i = 0; i < got.length; i++) items[p * PAGE + i] = got[i];
       pages[p] = 'done';
+      if (p === 0) setText(empty, got.length ? '' : 'Nothing here yet.');
       const total = r && r.TotalRecordCount != null ? r.TotalRecordCount : p * PAGE + got.length;
       setText(count, total + (total === 1 ? ' title' : ' titles'));
       if (grid.total() !== total) grid.setTotal(total);
@@ -100,6 +102,7 @@ export function LibraryScreen(args) {
     }, function () {
       delete pages[p];
       if (!alive || gen !== generation) return;
+      if (!items.length) setText(empty, 'Could not load this library. Press OK to retry.');
       if (!warned) { warned = true; toast('Could not load ' + (view.Name || 'the library')); }
     });
   }
@@ -112,6 +115,7 @@ export function LibraryScreen(args) {
     setText(sortEl, 'Sorted by ' + SORTS[sortIndex].label);
     grid.reset();
     setText(focusInfo, '');
+    setText(empty, '');
     loadPage(0);
   }
   reload();
@@ -128,7 +132,7 @@ export function LibraryScreen(args) {
         case 'down': grid.move(0, 1); return true;
         case 'pageup': grid.focusIndex(grid.index() - grid.cols * 3); return true;
         case 'pagedown': grid.focusIndex(grid.index() + grid.cols * 3); return true;
-        case 'enter': grid.select(); return true;
+        case 'enter': if (!items.length && !pages[0]) reload(); else grid.select(); return true;
         case 'play': case 'playpause': if (grid.current()) nav.go('playItem', grid.current()); return true;
         case 'yellow': sortIndex = (sortIndex + 1) % SORTS.length; reload(); return true;
         case 'back':

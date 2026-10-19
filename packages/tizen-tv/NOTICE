@@ -25,3 +25,32 @@ Fonts (SIL Open Font License 1.1; license texts in app/fonts/):
 Files come from @fontsource/inter@5.0.18 and @fontsource/barlow-condensed@5.0.13.
 
 app/icon.png is the AIOStreams Tizen icon copied from packages/smart-tv/tizen/icon.png.
+
+Vendored (MIT): app/js/vendor/qrcode.js is qrcode-generator 1.4.4 by Kazuhiko Arase
+(https://github.com/kazuhikoarase/qrcode-generator), license header kept in the file.
+The QR code on the Connect screen encodes only the server's public web address.
+
+Adapted from samsucks (screens/login.js, screens/search.js, screens/settings.js, ui/hud.js; GPL-3.0):
+  app/js/screens/connect.js, app/js/screens/search.js, app/js/screens/settings.js,
+  app/js/ui/keyboard.js, app/js/ui/hud.js (layout/focus-zone ideas and the fps overlay; reimplemented)
+
+Phase 2 (agent A) additions adapted from samsucks (each file carries the attribution header):
+  app/js/ui/images.js        concurrency-limited LIFO image loader with decode-before-attach and LRU
+  app/js/ui/tile.js          recycled tile nodes, fill-on-change
+  app/js/ui/row.js           virtualized row with stationary focus ring
+  app/js/ui/grid.js          virtualized poster grid
+  app/js/ui/backdrop.js      2x2 WebGL ambience, cross-fading hero art
+  app/js/screens/{home,library}.js, app/css/browse.css   layout and focus handling of the browse screens
+
+Adapted from samsucks, phase 2 (playback and detail; agent B):
+  app/js/platform/player.js    AVPlay / <video> backend (seek serialisation and DTS notes from packages/web tizen/player.ts)
+  app/js/player/subtitles.js   CueTrack lookup (parser rewritten)
+  app/js/player/seek.js        seek-preview commit delay and step escalation
+  app/js/player/pick.js        direct-play whitelist
+  app/js/player/osd.js         OSD layout and timing
+  app/js/player/tracks.js      audio / subtitle picker panel
+  app/js/screens/player.js     playback screen: OSD, seek preview, track picker, up-next countdown
+  app/js/screens/detail.js     detail layout and button / season / episode zones
+  app/js/screens/sources.js    list-with-stationary-focus panel
+  app/css/detail.css           detail, sources and player styles
+

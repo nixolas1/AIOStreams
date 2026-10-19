@@ -22,6 +22,9 @@ const playbackInfo = readJson('playbackinfo.json');
 const user = readJson('user.json');
 const TICKS_MIN = 600000000;
 const SRC_URL = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4';
+// Local 12 s VP8 clip (Chromium builds without H.264 can play it); served with Range support.
+const LOCAL_VIDEO = path.join(fixDir, 'mock-video.webm');
+const MOCK_VTT = 'WEBVTT\n\n00:00:00.500 --> 00:00:04.000\nMock subtitle line one\n\n00:00:05.000 --> 00:00:09.000\n<i>Mock subtitle</i> line two\n';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -37,6 +40,7 @@ function strip(t) {
 
 export function createServer() {
   const favorites = new Set();
+  const playLog = []; // [{path, body}] of /Sessions/Playing* calls, for tests (never holds tokens)
   const played = new Set();
   const qc = { polls: 0 };
 
@@ -169,6 +173,7 @@ export function createServer() {
       res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' });
       return res.end();
     }
+    if (p === '/System/Info/Public') return send({ LocalAddress: MOCK, ServerName: 'Demo AIOStreams', Version: '10.10.0', ProductName: 'Jellyfin Server', Id: 'mock-server', StartupWizardCompleted: true });
     if (p === '/QuickConnect/Initiate') { qc.polls = 0; return send({ Authenticated: false, Secret: 'mock-secret', Code: '482913', DeviceName: 'Samsung TV', AppName: 'AIOStreams TV' }); }
     if (p === '/QuickConnect/Connect') {
       if (q.secret !== 'mock-secret') return send({ Message: 'Unknown secret' }, 404);
@@ -223,13 +228,40 @@ export function createServer() {
       res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'max-age=3600', 'Access-Control-Allow-Origin': '*' });
       return res.end(svg(m[1], m[2]));
     }
-    if ((m = /^\/Items\/([^/]+)\/PlaybackInfo$/.exec(p)) && method === 'POST') return send(playbackInfo);
+    if ((m = /^\/Items\/([^/]+)\/PlaybackInfo$/.exec(p)) && method === 'POST') {
+      // Non-http Path: the client falls back to the stream route, which serves the local clip.
+      const info = JSON.parse(JSON.stringify(playbackInfo));
+      for (const src of info.MediaSources) {
+        src.Path = 'mock://' + src.Id;
+        for (const st of src.MediaStreams || []) {
+          if (st.Type === 'Subtitle') st.DeliveryUrl = '/Videos/' + m[1] + '/' + src.Id + '/Subtitles/' + st.Index + '/Stream.srt?ApiKey=mock';
+        }
+      }
+      return send(info);
+    }
+    if (/^\/Videos\/[^/]+\/[^/]+\/Subtitles\/\d+\/Stream\.\w+$/.test(p)) {
+      res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      return res.end(MOCK_VTT);
+    }
     if ((m = /^\/Items\/([^/]+)$/.exec(p)) || (m = /^\/Users\/[^/]+\/Items\/([^/]+)$/.exec(p))) {
       const it = find(m[1]);
       return it ? send(withState(it)) : send({ Message: 'Not found' }, 404);
     }
-    if (/^\/Videos\/[^/]+\/stream$/.test(p)) { res.writeHead(302, { Location: SRC_URL }); return res.end(); }
-    if (p.startsWith('/Sessions/Playing')) { await body(req); return noContent(); }
+    if (/^\/Videos\/[^/]+\/stream$/.test(p)) {
+      if (!fs.existsSync(LOCAL_VIDEO)) { res.writeHead(302, { Location: SRC_URL }); return res.end(); }
+      const size = fs.statSync(LOCAL_VIDEO).size;
+      const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+      const head = { 'Content-Type': 'video/webm', 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*' };
+      if (range) {
+        const a = range[1] ? parseInt(range[1], 10) : 0;
+        const b = range[2] ? Math.min(parseInt(range[2], 10), size - 1) : size - 1;
+        res.writeHead(206, Object.assign(head, { 'Content-Range': 'bytes ' + a + '-' + b + '/' + size, 'Content-Length': b - a + 1 }));
+        return fs.createReadStream(LOCAL_VIDEO, { start: a, end: b }).pipe(res);
+      }
+      res.writeHead(200, Object.assign(head, { 'Content-Length': size }));
+      return fs.createReadStream(LOCAL_VIDEO).pipe(res);
+    }
+    if (p.startsWith('/Sessions/Playing')) { playLog.push({ path: p, body: await body(req) }); return noContent(); }
     if ((m = /^\/UserPlayedItems\/([^/]+)$/.exec(p))) {
       if (method === 'POST') played.add(m[1]); else played.delete(m[1]);
       return send({ Played: method === 'POST' });
@@ -257,12 +289,14 @@ export function createServer() {
     fs.createReadStream(file).pipe(res);
   }
 
-  return http.createServer((req, res) => {
+  const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === MOCK || url.pathname.startsWith(MOCK + '/')) {
       mock(req, res, url).catch((e) => { res.writeHead(500); res.end(String(e)); });
     } else serveStatic(req, res, url);
   });
+  server.playLog = playLog;
+  return server;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

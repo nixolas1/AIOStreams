@@ -1,1 +1,92 @@
-/* forms screens — see CONTRACTS.md ownership */
+/* Connect, Search, Settings, text field, HUD. Chrome 76 rules apply (see app.css). */
+
+/* ---------- text field (ui/keyboard.js) ---------- */
+.field { position: relative; }
+.field-label { font: 600 24px/1 var(--body); color: var(--dim); margin-bottom: 16px; letter-spacing: 0.02em; }
+.field-box {
+  position: relative; width: 1000px; height: 96px; border-radius: 20px;
+  background: var(--raised); border: 3px solid transparent;
+}
+.field-box.focus { background: var(--cream); }
+.field-box.editing { border-color: var(--accent); }
+.field-input {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 0 36px;
+  background: transparent; border: 0; outline: 0; color: var(--text);
+  font: 500 38px/90px var(--body); caret-color: var(--accent);
+}
+.field-input::placeholder { color: var(--dim); }
+.field-box.focus .field-input { color: var(--bg); }
+.field-box.focus .field-input::placeholder { color: rgba(11, 13, 18, 0.5); }
+.field-hint {
+  position: absolute; top: 0; right: 32px; height: 90px;
+  font: 500 22px/90px var(--body); color: rgba(11, 13, 18, 0.55);
+}
+
+/* ---------- connect ---------- */
+.screen-connect { background: var(--bg); }
+.conn-pane { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; }
+.conn-title { position: absolute; left: 192px; top: 230px; font: 700 88px/1 var(--display); letter-spacing: 0.01em; }
+.conn-sub { position: absolute; left: 192px; top: 340px; width: 960px; font: 400 28px/1.45 var(--body); color: var(--dim); }
+.conn-server .field { position: absolute; left: 192px; top: 470px; }
+.conn-status { position: absolute; left: 192px; top: 700px; width: 1000px; min-height: 40px; font: 500 26px/1.4 var(--body); color: var(--dim); }
+.conn-status.err { color: var(--accent); }
+.conn-status.ok { color: var(--cream); }
+.conn-btn { position: absolute; left: 192px; top: 790px; width: 280px; }
+.conn-server-line { position: absolute; left: 192px; top: 340px; font: 500 26px/1 var(--body); color: var(--dim); }
+.conn-code {
+  position: absolute; left: 192px; top: 420px; font: 700 160px/1 var(--display);
+  letter-spacing: 0.22em; color: var(--text);
+}
+.conn-steps {
+  position: absolute; left: 216px; top: 640px; width: 900px; list-style: decimal;
+  font: 500 30px/1.5 var(--body); color: var(--text);
+}
+.conn-steps li { margin-bottom: 8px; padding-left: 10px; }
+.conn-note { position: absolute; left: 192px; top: 900px; font: 500 26px/1 var(--body); color: var(--dim); }
+.conn-qrbox {
+  position: absolute; left: 1300px; top: 330px; width: 340px; padding: 30px; border-radius: 28px;
+  background: var(--raised); text-align: center;
+}
+.conn-qr { display: block; margin: 0 auto; border-radius: 12px; }
+.conn-qr-cap { margin-top: 22px; font: 500 22px/1.2 var(--body); color: var(--dim); }
+
+/* ---------- search ---------- */
+.search-title { position: absolute; left: 96px; top: 40px; font: 700 40px/88px var(--display); letter-spacing: 0.02em; display: none; }
+.screen-search .topbar { display: none; }
+.search-field { position: absolute; left: 96px; top: 64px; }
+.search-field .field-box { width: 1200px; height: 88px; }
+.search-field .field-input { font-size: 34px; line-height: 82px; }
+.search-field .field-hint { line-height: 82px; }
+.search-chip-label { position: absolute; left: 96px; top: 184px; font: 600 20px/1 var(--body); color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
+.search-chips { position: absolute; left: 96px; top: 220px; width: 1728px; height: 56px; white-space: nowrap; overflow: hidden; }
+.search-chip { height: 52px; padding: 0 26px; border-radius: 26px; font: 500 26px/52px var(--body); }
+.search-empty { position: absolute; left: 0; top: 440px; width: 1920px; text-align: center; }
+.search-empty-title { font: 700 64px/1.1 var(--display); color: var(--text); }
+.search-empty-sub { margin-top: 20px; font: 400 26px var(--body); color: var(--dim); }
+.search-rows { position: absolute; left: 0; top: 310px; width: 1920px; height: 770px; overflow: hidden; }
+.search-rows-track { top: 0; }
+.search-rowwrap { position: absolute; left: 0; top: 0; width: 1920px; height: 480px; }
+
+/* ---------- settings ---------- */
+.set-title { position: absolute; left: 192px; top: 140px; font: 700 72px/1 var(--display); }
+.set-clip { position: absolute; left: 192px; top: 240px; width: 1536px; height: 820px; overflow: hidden; }
+.set-list { position: absolute; left: 0; top: 0; width: 1536px; will-change: transform; transition: transform 220ms var(--ease); }
+.set-head { position: absolute; left: 0; width: 1536px; height: 76px; padding-top: 34px; font: 600 22px/1 var(--body); color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; }
+.set-row { position: absolute; left: 0; width: 1536px; height: 72px; padding: 0 32px; border-radius: 16px; background: var(--faint); }
+.set-label { position: absolute; left: 32px; top: 0; font: 600 28px/72px var(--body); color: var(--text); }
+.set-value { position: absolute; right: 32px; top: 0; font: 500 26px/72px var(--body); color: var(--dim); white-space: nowrap; }
+.set-row.off .set-label { opacity: 0.45; }
+.set-row.focus { background: var(--cream); }
+.set-row.focus .set-label { color: var(--bg); }
+.set-row.focus .set-value { color: rgba(11, 13, 18, 0.7); }
+.set-row.inert { background: transparent; }
+.set-row.inert.focus { background: var(--faint); }
+.set-row.inert.focus .set-label { color: var(--text); }
+.set-row.inert.focus .set-value { color: var(--dim); }
+html.fast .set-list { transition-duration: 110ms; }
+
+/* ---------- perf HUD ---------- */
+.hud {
+  position: fixed; top: 16px; right: 24px; z-index: 900; padding: 8px 14px; border-radius: 10px;
+  background: rgba(0, 0, 0, 0.7); color: var(--cream); font: 600 20px/1 var(--body); pointer-events: none;
+}

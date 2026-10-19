@@ -106,3 +106,93 @@ Mock ids: views `view-trending-movies`, `view-popular-series`, `view-netflix-mov
 - Placeholders exist for every file above (screens return `placeholder(name)`; ui/api/platform stubs `export {}`).
   Replace them wholesale; delete the `_placeholder.js` import when done.
 - Add `tests/<module>.test.mjs` for logic; browser checks extend `tests/browser/smoke.mjs`.
+
+## UI kit (phase 2, agent A)
+
+Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles through `ui/tile.js`.
+
+- `ui/images.js`: `load(img, url, {now})` sets `img._want`, queues the job (max 6 concurrent, LIFO, stale jobs dropped),
+  decodes, then attaches and adds class `in` (fade; `now` class when attached instantly from the 800-entry LRU or `{now:true}`).
+  `load(img, '')` clears. `cancel(img)` drops a pending job. `prefetch(url)` warms the cache.
+- `ui/tile.js`: `KINDS = {wide:{w:400,h:225}, poster:{w:220,h:330}, episode:{w:384,h:216,caption:true}, grid:{w:216,h:324,caption:true}}`,
+  `CAPTION_H = 70`. `createTile(kind, {kindBadge})` -> element (`.tile.tile-<kind>`, absolutely positioned: set `transform: translateX/Y`;
+  state lives on `el._t`). `fillTile(tile, item, kind?)` exits early when it already shows `item`; picks art (wide: Thumb/Backdrop,
+  episodes: Primary, falling back to the series' backdrop/primary; poster/grid: Primary), a placeholder title, a progress bar from
+  `UserData.PlayedPercentage`, a badge (unplayed count on series, check when played) and optional kind label.
+  `imageFor(item, 'Primary'|'Thumb'|'Backdrop'|'Logo', width)` -> URL or '' (use it for hero/detail art and logos; it handles
+  episode -> series fallbacks via `SeriesId`, `ParentBackdropItemId/ImageTags`, `ParentLogoItemId/ImageTag`, `SeriesPrimaryImageTag`).
+  Needs the item's `ImageTags`/`BackdropImageTags` (they are in `jellyfin.FIELDS`).
+- `ui/row.js`: `createRow({kind, title, onFocus(item,index), onSelect(item,index), onNeedMore(), kindBadge})` ->
+  `{el, height, setItems(items), appendItems(items), move(dx) -> bool, setIndex(i) (silent), index(), item(), items(), count(),
+  select(), setTitle(t), setActive(bool), destroy()}`. `el` is a `.row` (absolute, top-left origin): the parent positions it with
+  `translateY`; `height` is its layout height (title 64 + tiles + caption + 24). Stationary ring at left (visible only when active),
+  track slides, pooled tiles. `onNeedMore` fires when focus is within 6 of the end. Pure helpers exported for tests:
+  `poolSizeFor, poolWindow, slotOf, trackX, rowHeight`.
+- `ui/backdrop.js`: `useAmbience(initial) -> {set(colors), restore()}` (one shared 2x2 WebGL/2D ambience behind all screens;
+  call `restore()` in `onShow`), `new HeroArt(parent, 'hero-art home-art', onColors)` with `.set(url)` (cross-fade after decode,
+  token guarded, samples colors with `crossOrigin='anonymous'`, falls back to a plain load + warm palette when CORS fails),
+  `sampleColors(img)`, `FALLBACK`. Colors are `{tl,tr,bl,br}` of `[r,g,b]`.
+- `ui/toast.js`: `toast(text[, ms])`.
+- `ui/grid.js` / `ui/chips.js` / `ui/topbar.js`: see the notes added when they land (below).
+- Browse items are Jellyfin DTOs; items restored from the first-paint cache are **slim** (see `hubs.slim`), so a detail
+  screen must re-fetch `jellyfin.item(id)` for full data. Items listed from a classified view carry `_kind` ('movie'|'series'|'anime').
+- `api/hubs.js`: `kindOf(item)`, `classify(views)`, `viewsFor(kind)`, `recipesFor(kind)`, `homeRecipes()`, `loadViews()`.
+- Tabs: `nav.go('openHub', kind)` with `kind` = `'home'|'movies'|'series'|'anime'` switches tab (replaces the tab screen when a
+  tab screen is on top, otherwise pushes). Tab screens set `screen.tab = true`.
+
+## Forms phase (agent C): connect, search, settings
+
+- `ui/keyboard.js`: `createField({placeholder,value,type,label,onInput,onDone,onCancel})` ->
+  `{el, input, value(), setValue(v), isEditing(), setFocused(bool), focused(), begin(), commit(), cancel(), handleKey(action)->bool}`.
+  Visual focus (`setFocused`) shows "Press OK to type"; OK (`enter`) starts editing (real `<input>` gets DOM focus, IME up);
+  Done (`imedone`) or Enter commits (`onDone`), Back or `imecancel` reverts (`onCancel`). While editing, `input.js` only
+  forwards back/up/down/enter/imedone/imecancel; up/down commit and fall through to the screen. Screens call
+  `field.handleKey(action)` first.
+- `screens/connect.js`: exports `parseServerInput`, `webAddress(base)`, `hostOf(base)`, `validateServer(base, fetch?, timeoutMs?)`
+  (GET `{base}/System/Info/Public`, 6 s), `drawQr(canvas, text, size)`. On Quick Connect success it calls
+  `session.signIn` then `router.reset(HomeScreen({}))`. The QR encodes only the server's web origin; the secret never leaves the closure.
+- `screens/search.js`: exports `groupResults(items, isAnimeFn?)`, `looksLikeAnime`, `addRecent`. Uses `ui/row.js` `createRow`
+  and `hubs.kindOf(item)` (namespace imports, so a missing export degrades instead of breaking boot).
+- `screens/settings.js`: store keys written: `hubOverrides` ({[viewId]:{kind?,hidden?}}, kind movie|series|anime),
+  `pref4k` (bool, default false), `autoplayNext` (bool, default true), `subLang` ('off' or ISO 639-2: eng nor swe dan ger fre spa jpn,
+  default 'off'), `hud` (bool). Calls `hubs.clearBrowseCache()` after a hub override change when it exists.
+  `recentSearches` (max 8 strings) is written by Search.
+- `ui/hud.js`: `setHud(bool)`, `hudEnabled()`, `initHud()` (called once from `app.js` start). fps over 500 ms + worst frame.
+- Dev mock: added `GET /mock/jellyfin/System/Info/Public`.
+- CSS: `css/forms.css` (fields, `.conn-*`, `.search-*`, `.set-*`, `.hud`).
+
+## Phase 2, agent B: detail, sources, player
+
+- `screens/detail.js` `DetailScreen({item})`: `item` may be a stub (`{Id, Type, Name}`); the full item
+  (with People/Taglines/MediaStreams) is fetched on show and again after returning from the player.
+  `Season` items open their series on that season; `Episode` items show episode details + "Go to series".
+  Zones: `buttons | seasons | episodes | similar`. The body slides up so the active section's top lands at y=380.
+  Play acts on the item, or for a series on NextUp (else the first episode). It calls
+  `nav.go('playItem', item, {startMs})`.
+- `screens/sources.js`: `createSourcesPanel({onPlay(item, source, info, startMs), onClose()})` ->
+  `{el, open(item), close(), isOpen(), onKey(action), destroy()}` (detail embeds it); `SourcesScreen({item})`
+  is the nav `openSources` wrapper. The chosen source id is remembered under store key `src.<itemId>`
+  (`lastSourceKey(itemId)` is exported from `screens/player.js`). Red searches again (`Refresh`).
+- `screens/player.js` `PlayerScreen({item, opts})`; opts: `startMs` (else UserData position), `sourceId`
+  (preferred MediaSource Id), `info` (a PlaybackInfo response to reuse; else `playbackInfo(id, {kept:true})`).
+  With no `sourceId` the remembered source is used only when resuming (startMs > 0), else `pickSource`.
+  Reports `/Sessions/Playing` (+ `/Progress` every 10 s and on pause/unpause/seek, `/Stopped` once on exit/end).
+  Errors fall back once to the next playable source (toast), then show a retry box.
+  Episodes resolve the next episode through `jellyfin.episodes(seriesId)`; at the end a 10 s up-next card
+  (OK plays now via `router.replace`, Back exits). Store keys `player.audioLang`, `player.subLang`.
+- `player/pick.js`: `rankSources(sources) -> [{source, playable, warn, reasons[]}]` (clean playable in server order,
+  then playable-with-warning such as Dolby Vision without an HDR fallback, then rejected), `pickSource`, `nextSource`,
+  `judge`, `describeSource`, `isUhd`, `nameLines`. DTS-only or TrueHD-only audio is rejected; sources without
+  MediaStreams are judged from `aiostreams` tags and the name text; unknown facts never reject.
+- `player/subtitles.js`: `parseCues(text) -> [{start,end,text}]` (SRT/VTT, ms), `stripTags`, `CueTrack.textAt(ms)`
+  (`at` is an alias; the Chrome 76 lint flags `.at(` calls, so the app uses `textAt`).
+- `player/seek.js`: `stepFor(n)`, `Seeker` (commit 900 ms after the last press, streak gap 700 ms).
+- `player/osd.js`, `player/tracks.js`: DOM builders used by the player screen; `tracks.js` also has
+  `chooseAudio` (DTS avoidance), language helpers.
+- `platform/player.js`: `createPlayer(container, listener) -> backend` (AVPlay on Tizen, `<video>` elsewhere);
+  interface is documented at the top of the file.
+- Mock server additions (`tools/devserver.mjs`): PlaybackInfo sources use a non-http `Path` so the stream route is
+  used; the stream route serves `tests/fixtures/mock-video.webm` (12 s, VP8, Range support); subtitle route
+  `/Videos/:id/:msid/Subtitles/:i/Stream.<fmt>`; `createServer().playLog` records `/Sessions/Playing*` calls.
+- CSS: `css/detail.css` holds the detail, sources and player styles.
+

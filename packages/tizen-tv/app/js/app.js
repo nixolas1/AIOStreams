@@ -13,6 +13,7 @@ import { SourcesScreen } from './screens/sources.js';
 import { PlayerScreen } from './screens/player.js';
 import { SearchScreen } from './screens/search.js';
 import { SettingsScreen } from './screens/settings.js';
+import { initHud } from './ui/hud.js';
 
 // Desktop only: scale the fixed 1920x1080 canvas into the browser window.
 function fitWindow() {
@@ -29,7 +30,12 @@ function wireNav() {
   nav.register('openItem', function (item) { return router.push(DetailScreen({ item: item })); });
   nav.register('playItem', function (item, opts) { return router.push(PlayerScreen({ item: item, opts: opts || {} })); });
   nav.register('openLibrary', function (view, opts) { return router.push(LibraryScreen({ view: view, opts: opts || {} })); });
-  nav.register('openHub', function (kind) { return router.push(HubScreen({ kind: kind })); });
+  // Home/Movies/Series/Anime are tabs: switching replaces the tab screen instead of stacking.
+  nav.register('openHub', function (kind) {
+    const screen = kind === 'home' ? HomeScreen({}) : HubScreen({ kind: kind });
+    const top = router.top();
+    return top && top.tab ? router.replace(screen) : router.push(screen);
+  });
   nav.register('openSearch', function () { return router.push(SearchScreen({})); });
   nav.register('openSettings', function () { return router.push(SettingsScreen({})); });
   nav.register('openSources', function (item) { return router.push(SourcesScreen({ item: item })); });
@@ -56,6 +62,7 @@ export function start() {
   fitWindow();
   registerKeys();
   applyDevParams();
+  try { initHud(); } catch (e) { /* ignore */ }
   router.init(document.getElementById('app'), null);
   wireNav();
   if (session.isSignedIn()) router.reset(HomeScreen({}));

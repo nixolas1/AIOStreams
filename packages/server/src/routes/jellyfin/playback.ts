@@ -5,15 +5,20 @@ import {
   lookupFor,
   couldHaveSegments,
   isMemoFresh,
+  offeredSources,
   playableSources,
   resolveByItem,
   segmentsFor,
   resolveByMediaSource,
   resolveByPlaySession,
+  resolveByClient,
+  writeClientSession,
   type ContentDescriptor,
   type DeviceProfile,
   type MediaSourceRecord,
+  type MemoPointer,
   type PlaybackMemo,
+  type PlaySupport,
 } from '@aiostreams/core';
 import {
   bodyField,
@@ -34,6 +39,7 @@ import {
 import {
   applyProbedMediaInfo,
   enrichSourceSubtitles,
+  maxVersionsFor,
   resolvePlayback,
 } from './resolve.js';
 
@@ -70,21 +76,21 @@ async function locate(
     qs(req, 'MediaSourceId') ??
     (typeof bodyMsid === 'string' && bodyMsid ? bodyMsid : undefined) ??
     opts.hintMsid;
+  const itemId = rawItemId.replace(/-/g, '').toLowerCase();
   let ctx = req.jf;
-  const session =
-    psid && (!ctx || opts.bySession)
-      ? await resolveByPlaySession(psid)
-      : undefined;
+  let session: MemoPointer | undefined;
+  if (psid && (!ctx || opts.bySession))
+    session = await resolveByPlaySession(psid);
+  else if (ctx && opts.bySession)
+    session = await resolveByClient(ctx.token, itemId);
 
   if (!ctx) {
     const pointer =
       session ??
-      (rawMsid &&
-      rawMsid.replace(/-/g, '').toLowerCase() !==
-        rawItemId.replace(/-/g, '').toLowerCase()
+      (rawMsid && rawMsid.replace(/-/g, '').toLowerCase() !== itemId
         ? await resolveByMediaSource(rawMsid.replace(/-/g, '').toLowerCase())
         : undefined) ??
-      (await resolveByMediaSource(rawItemId.replace(/-/g, '').toLowerCase()));
+      (await resolveByMediaSource(itemId));
     if (!pointer) return null;
     ctx =
       (await contextFromCredentials(
@@ -114,7 +120,6 @@ async function locate(
     d.k !== 'season'
   )
     return null;
-  const itemId = rawItemId.replace(/-/g, '').toLowerCase();
   if (rawMsid) {
     const norm = rawMsid.replace(/-/g, '').toLowerCase();
     if (norm !== itemId) requestedMsid = norm;
@@ -182,13 +187,22 @@ function isPlaying(req: Request, loc: Located): boolean {
   return PLAY_ONLY_CLIENTS.test(loc.ctx.client.name);
 }
 
+/** Without an id, the first version every client is offered. */
 function pickSource(
   memo: PlaybackMemo,
   requestedMsid?: string
 ): MediaSourceRecord | undefined {
   return requestedMsid
     ? memo.sources.find((s) => s.msid === requestedMsid)
-    : memo.sources[0];
+    : memo.sources.find((s) => !s.needs);
+}
+
+function playSupportOf(req: Request): PlaySupport {
+  const body = bodyOf(req);
+  return {
+    headers: body.EnableRequiredHttpHeaders === true,
+    youtube: body.EnableYouTube === true,
+  };
 }
 
 /**
@@ -216,8 +230,12 @@ async function playbackInfo(req: Request, res: Response) {
     return;
   }
   const profile = bodyOf(req).DeviceProfile as DeviceProfile | undefined;
+  const support = playSupportOf(req);
   const memo = await ensureMemo(loc, listingOptions(req, loc));
-  if (!memo || !memo.sources.length) {
+  const offered = memo
+    ? offeredSources(memo.sources, support, maxVersionsFor(loc.ctx))
+    : [];
+  if (!memo || !offered.length) {
     res.json({
       MediaSources: placeholderSources(req, loc.ctx, loc.itemId, true),
       PlaySessionId: memo?.psid ?? '',
@@ -225,18 +243,28 @@ async function playbackInfo(req: Request, res: Response) {
     });
     return;
   }
-  await enrichSourceSubtitles(loc.ctx, memo, loc.requestedMsid);
-  await applyProbedMediaInfo(loc.ctx, memo, loc.requestedMsid, {
+  if (req.jf)
+    await writeClientSession(
+      req.jf.token,
+      memo,
+      loc.ctx.scope(),
+      loc.ctx.persona?.id
+    );
+  const target = loc.requestedMsid ?? offered[0].msid;
+  await enrichSourceSubtitles(loc.ctx, memo, target);
+  await applyProbedMediaInfo(loc.ctx, memo, target, {
     playing: isPlaying(req, loc),
   });
   // A version no longer listed must not lend its id to another.
-  const requested = memo.sources.some((s) => s.msid === loc.requestedMsid)
+  const requested = offered.some((s) => s.msid === loc.requestedMsid)
     ? loc.requestedMsid
     : undefined;
   const sources = mediaSourcesFrom(req, loc.ctx, memo, {
     firstId: requested ?? loc.itemId,
     tracks: await trackPreferences(loc.ctx),
     requestedMsid: requested,
+    onlyRequested: true,
+    support,
     profile,
     hasSegments: hasSegments(loc.ctx, memo),
   });

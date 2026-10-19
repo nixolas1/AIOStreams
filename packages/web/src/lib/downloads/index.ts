@@ -1,13 +1,15 @@
+import { plural, t } from '@lingui/core/macro';
 import React from 'react';
 import { toast } from 'sonner';
 import { JellyfinError, type JellyfinClient } from '../client';
 import { currentHost } from '../hosts';
 import { playableSources } from '../playback/play';
+import { requiredHeaders } from '../playback/stream';
 import { requestItem, requestPlaybackInfo } from '../queries';
 import { textSubtitles } from '../subtitles/tracks';
 import { useSession } from '../session';
 import { onSettingsChange, settings } from '../settings';
-import { unavailableLabel } from '../format';
+import { unavailableKind } from '../format';
 import type { BaseItemDto, BaseItemDtoQueryResult, SourceInfo } from '../types';
 import { useLatest } from '../use-latest';
 import { hostJob, versionDetails } from './files';
@@ -33,6 +35,21 @@ export function downloadsHost(): DownloadsHost | null {
   return currentHost().downloads ?? null;
 }
 
+const downloadSupport = () => ({
+  headers: !!downloadsHost()?.headers,
+  youtube: false,
+});
+
+/** Whether a download can fetch the version; a YouTube one has no single file to save. */
+export function downloadable(source: SourceInfo): boolean {
+  const support = downloadSupport();
+  return (
+    !!downloadsHost() &&
+    !source.aiostreams?.ytId &&
+    (support.headers || !requiredHeaders(source))
+  );
+}
+
 function newId(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) =>
     b.toString(16).padStart(2, '0')
@@ -42,7 +59,7 @@ function newId(): string {
 function versionOf(source: SourceInfo): Download['version'] {
   return {
     id: source.Id!,
-    label: source.aiostreams?.name || source.Name || 'Version',
+    label: source.aiostreams?.name || source.Name || t`Version`,
     size: source.Size ?? source.aiostreams?.size,
   };
 }
@@ -91,6 +108,7 @@ async function forDownload(
     download.item.Id!,
     {
       profile: DOWNLOAD_PROFILE,
+      support: downloadSupport(),
     }
   ).catch(() => null);
   return (
@@ -157,7 +175,7 @@ export function useAddDownloads() {
       );
       const fresh = items.filter((item) => !taken.has(item.Id));
       if (!fresh.length) {
-        toast('Already downloaded or on the way');
+        toast(t`Already downloaded or on the way`);
         return;
       }
       const batch = fresh.length > 1 ? newId() : undefined;
@@ -178,10 +196,12 @@ export function useAddDownloads() {
         addedAt: Date.now() + i,
       }));
       addDownloads(added);
+      const count = added.length;
       toast.success(
-        added.length === 1
-          ? 'Download added'
-          : `${added.length} downloads added`
+        plural(count, {
+          one: 'Download added',
+          other: '# downloads added',
+        })
       );
       if (version) await place(client, added[0], version);
     },
@@ -255,7 +275,7 @@ export function useEpisodesToDownload() {
         { userId: user.Id, SeasonId: opts.seasonId }
       );
       return Items.filter(
-        (e) => !unavailableLabel(e) && (!opts.unwatched || !e.UserData?.Played)
+        (e) => !unavailableKind(e) && (!opts.unwatched || !e.UserData?.Played)
       );
     },
     [client, user.Id]
@@ -393,6 +413,7 @@ export function useDownloadRunner(): void {
         download.item.Id!,
         {
           profile: DOWNLOAD_PROFILE,
+          support: downloadSupport(),
         }
       );
       const sources = playableSources(info);
@@ -410,6 +431,7 @@ export function useDownloadRunner(): void {
       release(download, pick.aiostreams?.bingeGroup ?? null);
       await place(client, download, pick);
     } catch (e) {
+      const { message } = e as Error;
       if (e instanceof JellyfinError && e.status === 429) {
         limitedUntil.current = Math.max(
           limitedUntil.current,
@@ -422,7 +444,7 @@ export function useDownloadRunner(): void {
           id: download.id,
           patch: {
             state: 'failed',
-            error: `Could not find versions: ${(e as Error).message}`,
+            error: t`Could not find versions: ${message}`,
           },
         },
       ]);

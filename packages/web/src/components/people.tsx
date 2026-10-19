@@ -1,7 +1,8 @@
+import { t } from '@lingui/core/macro';
+import { formatLocale } from '../lib/i18n';
 import { useSession } from '../lib/session';
 import { personImageUrl } from '../lib/images';
 import { href, to } from '../lib/paths';
-import { FocusRing } from './cards';
 import { MediaRow } from './media-row';
 import type { BaseItemPerson } from '../lib/types';
 import { CachedImage } from './cached-image';
@@ -29,6 +30,7 @@ export function PersonCard({
     <>
       <div
         data-ui="person-card-image"
+        data-focus-frame
         className="relative mx-auto size-20 overflow-hidden rounded-full bg-gray-900 ring-1 ring-white/10 transition group-hover:ring-white/40 sm:size-24"
       >
         {image ? (
@@ -43,7 +45,6 @@ export function PersonCard({
             {initials(person.Name ?? '?')}
           </span>
         )}
-        <FocusRing className="group-focus-visible:opacity-100" />
       </div>
       <p
         data-ui="person-card-name"
@@ -77,7 +78,48 @@ export function PersonCard({
   );
 }
 
+export function PeopleRow({
+  id,
+  title,
+  people,
+}: {
+  id: string;
+  title: string;
+  people: { person: BaseItemPerson; detail?: string | null }[];
+}) {
+  return (
+    <MediaRow id={id} title={title} shape="square" itemClass={PERSON_WIDTH}>
+      {people.map(({ person, detail }) => (
+        <PersonCard
+          key={person.Id ?? person.Name}
+          person={person}
+          detail={detail}
+        />
+      ))}
+    </MediaRow>
+  );
+}
+
+// eslint-disable-next-line lingui/no-unlocalized-strings -- Jellyfin's person kinds
 const CAST = new Set(['Actor', 'GuestStar']);
+
+/** A crew job by the kinds AIOStreams sends; any other shows as the server names it. */
+function jobLabel(kind: string): string {
+  switch (kind) {
+    case 'Director':
+      return t`Director`;
+    case 'Writer':
+      return t`Writer`;
+    case 'Producer':
+      return t`Producer`;
+    case 'Composer':
+      return t`Composer`;
+    case 'Creator':
+      return t`Creator`;
+    default:
+      return kind;
+  }
+}
 
 /** The cast with their characters, then the crew with every job they held. */
 export function CastAndCrew({
@@ -96,40 +138,27 @@ export function CastAndCrew({
     if (job && !entry.jobs.includes(job)) entry.jobs.push(job);
     crew.set(key, entry);
   }
+  const list = new Intl.ListFormat(formatLocale(), {
+    style: 'narrow',
+    type: 'unit',
+  });
   return (
     <>
-      {cast.length > 0 && (
-        <MediaRow
-          id="cast"
-          title="Cast"
-          shape="square"
-          itemClass={PERSON_WIDTH}
-        >
-          {cast.slice(0, 40).map((person) => (
-            <PersonCard
-              key={person.Id ?? person.Name}
-              person={person}
-              detail={person.Role}
-            />
-          ))}
-        </MediaRow>
-      )}
-      {crew.size > 0 && (
-        <MediaRow
-          id="crew"
-          title="Crew"
-          shape="square"
-          itemClass={PERSON_WIDTH}
-        >
-          {[...crew.values()].map(({ person, jobs }) => (
-            <PersonCard
-              key={person.Id ?? person.Name}
-              person={person}
-              detail={jobs.join(', ')}
-            />
-          ))}
-        </MediaRow>
-      )}
+      <PeopleRow
+        id="cast"
+        title={t`Cast`}
+        people={cast
+          .slice(0, 40)
+          .map((person) => ({ person, detail: person.Role }))}
+      />
+      <PeopleRow
+        id="crew"
+        title={t`Crew`}
+        people={[...crew.values()].map(({ person, jobs }) => ({
+          person,
+          detail: list.format(jobs.map(jobLabel)),
+        }))}
+      />
     </>
   );
 }

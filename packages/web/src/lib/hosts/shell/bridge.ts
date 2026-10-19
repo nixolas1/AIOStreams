@@ -1,14 +1,60 @@
+import { t } from '@lingui/core/macro';
+import React from 'react';
 import type { HostEvent } from '../../downloads/types';
+
+/** A track as the app's player lists it; `url` is where an added one came from. */
+export interface AppTrack {
+  id: string;
+  type: 'audio' | 'subtitle';
+  title?: string;
+  language?: string;
+  codec?: string;
+  default: boolean;
+  forced: boolean;
+  hearingImpaired: boolean;
+  visualImpaired: boolean;
+  external: boolean;
+  url?: string;
+}
 
 /** `external` marks what the player in its own window sends. */
 export type ShellMessage =
   | { type: 'youtube-resolved'; request: string; url: string | null }
-  | { type: 'mpv-prop'; name: string; data: unknown; external?: boolean }
-  | { type: 'mpv-event'; name: string; external?: boolean }
   | {
-      type: 'mpv-ended';
+      type: 'player-state';
+      positionMs?: number;
+      durationMs?: number;
+      bufferedMs?: number;
+      paused?: boolean;
+      buffering?: boolean;
+      seeking?: boolean;
+      idle?: boolean;
+      volume?: number;
+      maxVolume?: number;
+      muted?: boolean;
+      speed?: number;
+      audio?: string | null;
+      subtitle?: string | null;
+      fullscreen?: boolean;
+      external?: boolean;
+    }
+  | { type: 'player-tracks'; tracks: AppTrack[]; external?: boolean }
+  | {
+      type: 'player-chapters';
+      chapters: { title?: string; startMs: number }[];
+      external?: boolean;
+    }
+  | {
+      type: 'player-event';
+      name: 'start' | 'loaded' | 'restart';
+      external?: boolean;
+    }
+  | {
+      type: 'player-ended';
       reason: string;
       error: string | null;
+      /** The HTTP status a failed load answered with. */
+      status?: number;
       cause?: string;
       external?: boolean;
     }
@@ -17,6 +63,11 @@ export type ShellMessage =
       players: { id: string; path: string | null }[];
     }
   | { type: 'external-ended'; error: string | null }
+  /** mpv's outputs on the desktop, as its `audio-device-list`. */
+  | {
+      type: 'audio-devices';
+      devices: { name: string; description: string }[] | null;
+    }
   | { type: 'fullscreen'; value: boolean }
   | { type: 'pip'; value: boolean }
   | { type: 'back' }
@@ -40,8 +91,12 @@ export type ShellMessage =
       ffmpeg: string | null;
       /** The Android app's player and its version. */
       player?: string;
+      /** Whether the app can re-encode sound to Dolby Digital. */
+      ac3Encoder?: boolean;
     }
   | { type: 'diagnostics'; text: string }
+  /** Empty when the last run ended normally or was already shown. */
+  | { type: 'crash-report'; at?: number; summary?: string; details?: string }
   | {
       type: 'update-state';
       state: 'checking' | 'downloading' | 'ready' | 'current' | 'error' | 'off';
@@ -113,4 +168,66 @@ declare global {
 
 export function appBridge(): ShellBridge | undefined {
   return window.aiostreamsApp;
+}
+
+export type ShellAnswer<T extends ShellMessage['type']> = Extract<
+  ShellMessage,
+  { type: T }
+>;
+
+/** Sends `message` and resolves with the first `answer` it gets. */
+export function ask<T extends ShellMessage['type']>(
+  message: { type: string; [key: string]: unknown },
+  answer: T,
+  opts: {
+    timeoutMs?: number;
+    matches?: (m: ShellAnswer<T>) => boolean;
+    /** Fails on the next `error` the app sends, which only some requests answer with. */
+    errors?: boolean;
+  } = {}
+): Promise<ShellAnswer<T>> {
+  const bridge = appBridge();
+  if (!bridge) return Promise.reject(new Error('Only the apps answer this'));
+  return new Promise((resolve, reject) => {
+    const done = () => {
+      clearTimeout(timer);
+      stop();
+    };
+    const timer =
+      opts.timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            done();
+            reject(new Error(t`The app did not answer`));
+          }, opts.timeoutMs);
+    const stop = bridge.subscribe((m) => {
+      if (m.type === 'error' && opts.errors) {
+        done();
+        reject(new Error(m.message));
+      } else if (m.type === answer && (opts.matches?.(m as never) ?? true)) {
+        done();
+        resolve(m as ShellAnswer<T>);
+      }
+    });
+    bridge.send(message);
+  });
+}
+
+/** The last `type` message the app sent, for a page that opens after it came. */
+export function bridgeStore<T extends ShellMessage['type']>(type: T) {
+  let last: ShellAnswer<T> | null = null;
+  const listeners = new Set<() => void>();
+  appBridge()?.subscribe((m) => {
+    if (m.type !== type) return;
+    last = m as ShellAnswer<T>;
+    for (const listener of listeners) listener();
+  });
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+    return () => void listeners.delete(listener);
+  };
+  return {
+    get: () => last,
+    use: () => React.useSyncExternalStore(subscribe, () => last),
+  };
 }

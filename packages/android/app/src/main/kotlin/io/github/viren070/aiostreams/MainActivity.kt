@@ -40,7 +40,11 @@ import io.github.viren070.aiostreams.bridge.AppIdentity
 import io.github.viren070.aiostreams.bridge.WebApp
 import io.github.viren070.aiostreams.downloads.DownloadChannel
 import io.github.viren070.aiostreams.mpv.MpvEngine
+import io.github.viren070.aiostreams.playback.Change
 import io.github.viren070.aiostreams.playback.PlayerChannel
+import io.github.viren070.aiostreams.playback.PlayerProtocol
+import io.github.viren070.aiostreams.playback.Sound
+import `is`.xyz.mpv.AudioEncoder
 import java.io.File
 import java.util.UUID
 import kotlinx.serialization.json.JsonArray
@@ -48,6 +52,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.floatOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -110,7 +116,7 @@ class MainActivity : ComponentActivity() {
             })
         }
         // Edge to edge: the page keeps clear of the system bars with its own safe-area insets.
-        web = CompletingWebView(this)
+        web = CompletingWebView(this, onTv())
         setContentView(FrameLayout(this).apply {
             addView(playback.stage, MATCH_PARENT, MATCH_PARENT)
             addView(web, MATCH_PARENT, MATCH_PARENT)
@@ -125,10 +131,10 @@ class MainActivity : ComponentActivity() {
             this,
             hold = {
                 val playing = !player.paused
-                if (playing) playback.engine.setProperty("pause", "yes")
+                if (playing) player.change(Change(paused = true))
                 playing
             },
-            resume = { playback.engine.setProperty("pause", "no") },
+            resume = { player.change(Change(paused = false)) },
         )
         passthrough = Passthrough(this) { player.outputChanged() }
         player = PlayerChannel(
@@ -140,7 +146,7 @@ class MainActivity : ComponentActivity() {
             fallBack = { playback.fallBack(player) },
             frameRate = frameRates::match,
             showVideo = playback::showVideo,
-            passthrough = passthrough::codecs,
+            passthrough = passthrough::supported,
         )
         gamepads = hasGamepad()
         getSystemService(InputManager::class.java).registerInputDeviceListener(controllers, null)
@@ -158,8 +164,8 @@ class MainActivity : ComponentActivity() {
         pip = PictureInPicture(this, playback.stage)
         focus = AudioFocus(
             this,
-            pause = { playback.engine.setProperty("pause", "yes") },
-            resume = { playback.engine.setProperty("pause", "no") },
+            pause = { player.change(Change(paused = true)) },
+            resume = { player.change(Change(paused = false)) },
         )
         player.start()
         player.session.addListener(object : Player.Listener {
@@ -196,6 +202,7 @@ class MainActivity : ComponentActivity() {
                 put("mpv", playback.engine.property("mpv-version"))
                 put("ffmpeg", playback.engine.property("ffmpeg-version"))
                 put("player", playback.engine.description)
+                put("ac3Encoder", AudioEncoder.has("ac3"))
             })
             "fullscreen" -> setFullscreen(message["value"]?.jsonPrimitive?.booleanOrNull ?: !screen.fullscreen)
             "levels" -> bridge.send(buildJsonObject {
@@ -218,10 +225,16 @@ class MainActivity : ComponentActivity() {
             }
             "player-engine" -> message["name"]?.jsonPrimitive?.contentOrNull?.let { playback.choose(it, player) }
             "player-retry" -> message["name"]?.jsonPrimitive?.contentOrNull?.let { playback.retry(it, player) }
-            "player-options" -> {
+            "player-settings" -> {
+                player.setSettings(PlayerProtocol.settings(message))
                 message["frameRate"]?.jsonPrimitive?.booleanOrNull?.let { frameRates.enabled = it }
                 message["tunneling"]?.jsonPrimitive?.booleanOrNull?.let { playback.tunneling = it }
                 message["dolbyVision"]?.jsonPrimitive?.booleanOrNull?.let { playback.dolbyVision = it }
+                playback.sound = Sound(
+                    dialogueBoost = message["dialogueBoost"]?.jsonPrimitive?.intOrNull ?: 0,
+                    nightMode = message["nightMode"]?.jsonPrimitive?.booleanOrNull == true,
+                    ac3Encode = message["ac3Encode"]?.jsonPrimitive?.booleanOrNull == true,
+                )
             }
             "youtube-resolve" -> youtube.resolve(
                 message["request"]?.jsonPrimitive?.contentOrNull.orEmpty(),
@@ -257,6 +270,20 @@ class MainActivity : ComponentActivity() {
                     }
                 }.start()
             }
+            "crash-report" -> Thread {
+                val report = runCatching { Crashes.last(this) }.getOrNull()
+                runOnUiThread {
+                    bridge.send(buildJsonObject {
+                        put("type", "crash-report")
+                        if (report != null) {
+                            put("at", report.at)
+                            put("summary", report.summary)
+                            put("details", report.details)
+                        }
+                    })
+                }
+            }.start()
+            "crash-seen" -> message["at"]?.jsonPrimitive?.longOrNull?.let { Crashes.seen(this, it) }
         }
     }
 
@@ -293,7 +320,7 @@ class MainActivity : ComponentActivity() {
             }
             saved.exceptionOrNull()?.let { Log.e("save-file", "saving $name", it) }
             runOnUiThread {
-                val note = if (saved.isSuccess) "Saved $name to Downloads" else "Couldn't save $name"
+                val note = getString(if (saved.isSuccess) R.string.file_saved else R.string.file_not_saved, name)
                 Toast.makeText(this, note, Toast.LENGTH_LONG).show()
             }
         }.start()
@@ -430,7 +457,7 @@ class MainActivity : ComponentActivity() {
         })
         // Closing the window, rather than opening it full size, stops playback.
         if (!isInPictureInPictureMode && lifecycle.currentState == Lifecycle.State.CREATED) {
-            playback.engine.setProperty("pause", "yes")
+            player.change(Change(paused = true))
         }
     }
 
@@ -438,7 +465,7 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         if (!started) return
         val background = player.session.item?.background == true
-        if (!isChangingConfigurations && !isInPictureInPictureMode && !background) playback.engine.setProperty("pause", "yes")
+        if (!isChangingConfigurations && !isInPictureInPictureMode && !background) player.change(Change(paused = true))
     }
 
     override fun onDestroy() {

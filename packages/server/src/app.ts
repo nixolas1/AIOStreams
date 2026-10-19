@@ -21,6 +21,7 @@ import {
   jellyfinApi,
   mediaInfoApi,
   communityApi,
+  reportsApi,
 } from './routes/api/index.js';
 import {
   configure,
@@ -42,6 +43,7 @@ import publicBlocklistRouter from './routes/blocklist.js';
 import publicCommunityRouter from './routes/community.js';
 import webdavRouter from './routes/webdav.js';
 import { createJellyfinRouter } from './routes/jellyfin/index.js';
+import partyRouter from './party/routes.js';
 import { createNabRouter } from './routes/api/nab.js';
 import {
   gdrive,
@@ -68,6 +70,7 @@ import {
   staticRateLimiter,
   linkedAccountsRateLimiter,
   communityApiRateLimiter,
+  appReportsRateLimiter,
   syncApiRateLimiter,
   mediaInfoApiRateLimiter,
   internalMiddleware,
@@ -148,6 +151,7 @@ apiRouter.use('/sync', syncApiRateLimiter, syncApi);
 apiRouter.use('/media-info', mediaInfoApiRateLimiter, mediaInfoApi);
 apiRouter.use('/linked-accounts', linkedAccountsRateLimiter, linkedAccountsApi);
 apiRouter.use('/community', communityApiRateLimiter, communityApi);
+apiRouter.use('/reports', appReportsRateLimiter, reportsApi);
 apiRouter.use('/auth', authApi);
 apiRouter.use('/dashboard', dashboardApi);
 apiRouter.use('/usenet', usenetApi);
@@ -248,6 +252,7 @@ app.use('/jellyfin/p/:code', jellyfinRouter);
 app.use('/jellyfin/u/:alias', jellyfinRouter);
 app.use('/jellyfin/:uuid/:encryptedPassword', jellyfinRouter);
 app.use('/jellyfin', jellyfinRouter);
+app.use('/party', partyRouter);
 
 // Content-hashed build assets. These filenames change on every content
 // change, so they are immutable and safe to cache aggressively. Deliberately
@@ -339,6 +344,7 @@ const SPA_STATIC_ROUTES = [
   '/oauth/callback/gdrive',
   '/splashscreen',
   '/stremio/configure',
+  '/party/join',
 ];
 
 const SPA_DYNAMIC_PATTERNS: RegExp[] = [

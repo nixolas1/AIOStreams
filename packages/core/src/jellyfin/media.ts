@@ -24,6 +24,7 @@ import type {
   JellyfinMediaSource,
   JellyfinMediaStream,
   MediaSourceRecord,
+  PlaySupport,
   SubtitleTrack,
 } from './types.js';
 
@@ -163,6 +164,11 @@ function fileExtension(pf: ParsedFile | undefined) {
   };
 }
 
+const names = (list: (string | undefined)[] | undefined) => {
+  const found = list?.filter((name): name is string => !!name);
+  return found?.length ? found : undefined;
+};
+
 export function extensionFor(
   stream: ParsedStream,
   formatted: { name: string; description: string },
@@ -181,6 +187,18 @@ export function extensionFor(
     age: stream.age,
     indexer: stream.indexer,
     filename: stream.filename,
+    folderName: stream.folderName,
+    editions: names(stream.parsedFile?.editions),
+    seMatched: stream.streamExpressionMatched?.name,
+    rseMatched: names(stream.rankedStreamExpressionsMatched),
+    regexMatched: stream.regexMatched?.name,
+    rankedRegexMatched: names(stream.rankedRegexesMatched),
+    seadex: stream.seadex?.isBest
+      ? 'best'
+      : stream.seadex?.isSeadex
+        ? 'alt'
+        : undefined,
+    ytId: stream.url ? undefined : stream.ytId,
     type: stream.type,
     bingeGroup,
   };
@@ -201,7 +219,8 @@ export async function applyStoredMediaInfo(
       ? storedMediaInfoFor(record.mediaInfo, metadata)
       : Promise.resolve(undefined);
   let info = await stored();
-  if (!info && opts.waitMs && record.url) {
+  // The prober can't send headers or open a YouTube video.
+  if (!info && opts.waitMs && !record.needs) {
     info =
       (await probeBeforePlay(
         {
@@ -230,14 +249,36 @@ export async function applyStoredMediaInfo(
   return true;
 }
 
-/** A stream clients can play directly: has a URL and needs no headers unless proxied. */
-export function isPlayable(stream: ParsedStream): boolean {
-  if (!stream.url) return false;
-  if (stream.proxied) return true;
-  const needsHeaders =
+export const FULL_SUPPORT: PlaySupport = { headers: true, youtube: true };
+
+/** What playing a stream takes beyond fetching its URL; null when nothing plays it. */
+function needOf(stream: ParsedStream): keyof PlaySupport | undefined | null {
+  if (!stream.url) return stream.ytId ? 'youtube' : null;
+  if (stream.proxied) return undefined;
+  const headers =
     (stream.requestHeaders && Object.keys(stream.requestHeaders).length > 0) ||
     (stream.responseHeaders && Object.keys(stream.responseHeaders).length > 0);
-  return !needsHeaders;
+  return headers ? 'headers' : undefined;
+}
+
+/** A stream any client plays from its URL alone, or one `support` covers. */
+export function isPlayable(
+  stream: ParsedStream,
+  support: PlaySupport = {}
+): boolean {
+  const need = needOf(stream);
+  return need === undefined || (need !== null && !!support[need]);
+}
+
+export function offeredSources(
+  sources: MediaSourceRecord[],
+  support: PlaySupport,
+  max: number
+): MediaSourceRecord[] {
+  const playable = sources
+    .filter((s) => !s.notice && (!s.needs || support[s.needs]))
+    .slice(0, max);
+  return [...playable, ...sources.filter((s) => s.notice)];
 }
 
 function fileKey(stream: ParsedStream): string {
@@ -287,8 +328,11 @@ export function sourceRecordFrom(
 ): MediaSourceRecord {
   return {
     msid: mediaSourceId(uuid, identity),
-    url: withPlayPath(stream.url!, 'jellyfin'),
+    url: stream.url
+      ? withPlayPath(stream.url, 'jellyfin')
+      : `https://www.youtube.com/watch?v=${stream.ytId}`,
     requestHeaders: stream.proxied ? undefined : stream.requestHeaders,
+    needs: needOf(stream) ?? undefined,
     filename: stream.filename,
     container: containerOf(stream),
     size: stream.size,
@@ -463,12 +507,10 @@ function audioStreams(pf: ParsedFile | undefined): JellyfinMediaStream[] {
   }
   const languages = (pf?.languages ?? []).filter((l) => l && l !== 'Unknown');
   const audioTag = (pf?.audioTags ?? []).find((t) => t !== 'Unknown') as
-    | AudioTag
-    | undefined;
+    AudioTag | undefined;
   const codec = audioTag ? AUDIO_CODEC[audioTag] : undefined;
   const channelTag = (pf?.audioChannels ?? []).find((c) => c !== 'Unknown') as
-    | AudioChannels
-    | undefined;
+    AudioChannels | undefined;
   const channels = channelTag ? CHANNEL_COUNT[channelTag] : undefined;
   const layout = channelTag ? CHANNEL_LAYOUT[channelTag] : undefined;
   return [
@@ -730,6 +772,7 @@ export function buildMediaSource(
     RunTimeTicks: durationMs ? msToTicks(durationMs) : undefined,
     IsInfiniteStream: record.live,
     ...SOURCE_FLAGS,
+    RequiredHttpHeaders: record.requestHeaders ?? {},
     HasSegments: opts.hasSegments ?? false,
     MediaStreams: mediaStreams,
     Bitrate: record.bitrate,

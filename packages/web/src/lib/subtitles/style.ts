@@ -1,7 +1,9 @@
+import { t } from '@lingui/core/macro';
 import {
   settings,
   SUBTITLE_POSITION_MAX,
   SUBTITLE_SIZES,
+  type SubtitleFont,
   type SubtitleOutline,
   type SubtitleSize,
   type SubtitleStyle,
@@ -14,12 +16,13 @@ const SCALE: Record<SubtitleSize, number> = {
   huge: 1.5,
 };
 
-export const SUBTITLE_SIZE_LABELS: Record<SubtitleSize, string> = {
-  small: 'Small',
-  normal: 'Normal',
-  large: 'Large',
-  huge: 'Huge',
-};
+export const subtitleSizeLabel = (size: SubtitleSize) =>
+  ({
+    small: t`Small`,
+    normal: t`Normal`,
+    large: t`Large`,
+    huge: t`Huge`,
+  })[size];
 
 /** One size up or down; null at either end. */
 export function stepSubtitleSize(sign: number): SubtitleSize | null {
@@ -59,6 +62,21 @@ export const MPV_OUTLINE: Record<SubtitleOutline, number> = {
   thick: 3,
 };
 
+/** The desktop app's fonts first, then the Android app's names for them. */
+/* eslint-disable lingui/no-unlocalized-strings -- CSS font families */
+const FONT_FAMILIES: Record<Exclude<SubtitleFont, 'default'>, string> = {
+  'sans-serif': 'sans-serif',
+  serif: 'serif',
+  monospace: 'Consolas, Menlo, monospace',
+  'serif-monospace': '"Courier New", serif-monospace, monospace',
+  casual: '"Comic Sans MS", casual, sans-serif',
+  cursive: '"Segoe Script", "Snell Roundhand", cursive',
+};
+/* eslint-enable lingui/no-unlocalized-strings */
+
+/** mpv's shadow offset, in the same units, from the outline's edge. */
+export const MPV_SHADOW = 3;
+
 export const subtitleScale = (style: SubtitleStyle) => SCALE[style.size];
 
 /** How high subtitles sit, in percent: the chosen height, or above what covers the bottom. */
@@ -69,6 +87,7 @@ export const subtitleHeight = (style?: SubtitleStyle, lift = 0) =>
 export const subtitleLine = (style?: SubtitleStyle, lift = 0) =>
   97 - subtitleHeight(style, lift);
 
+/* eslint-disable lingui/no-unlocalized-strings -- CSS values */
 function rgba(hex: string, opacity: number): string {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${opacity / 100})`;
@@ -80,19 +99,32 @@ export function subtitleCss(style: SubtitleStyle): {
   textShadow: string;
   fontSize: string;
   fontWeight: number;
+  fontFamily?: string;
 } {
   const px = OUTLINE_PX[style.outline];
   const c = style.outlineColor;
+  const shadows = px
+    ? [
+        `${-px}px ${-px}px 0 ${c}`,
+        `${px}px ${-px}px 0 ${c}`,
+        `${-px}px ${px}px 0 ${c}`,
+        `${px}px ${px}px 0 ${c}`,
+      ]
+    : [];
+  // A text shadow starts from the letters, so it clears the outline as mpv's does.
+  const offset = `calc(${px}px + 0.08em)`;
+  if (style.shadow) shadows.push(`${offset} ${offset} 0 ${c}`);
   return {
     color: style.textColor,
     backgroundColor: rgba(style.backgroundColor, style.backgroundOpacity),
-    textShadow: px
-      ? `${-px}px ${-px}px 0 ${c}, ${px}px ${-px}px 0 ${c}, ${-px}px ${px}px 0 ${c}, ${px}px ${px}px 0 ${c}`
-      : 'none',
+    textShadow: shadows.join(', ') || 'none',
     fontSize: `${SCALE[style.size] * 100}%`,
     fontWeight: style.bold ? 700 : 500,
+    fontFamily:
+      style.font === 'default' ? undefined : FONT_FAMILIES[style.font],
   };
 }
+/* eslint-enable lingui/no-unlocalized-strings */
 
 /** mpv writes colours with the alpha first: `#AARRGGBB`. */
 export function mpvColor(hex: string, opacity = 100): string {

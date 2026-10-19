@@ -20,8 +20,10 @@ export * from './arr/index.js';
 export * from './proxy/index.js';
 export * from './linked-accounts/index.js';
 export * from './community/index.js';
+export * from './app-reports/index.js';
 export * from './watch-state/index.js';
 export * from './jellyfin/index.js';
+export * from './sync/index.js';
 export { requestTitleMetadata } from './media-info/lookup.js';
 export {
   onPlay,

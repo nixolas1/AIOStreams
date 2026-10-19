@@ -1,5 +1,5 @@
 import type { Host } from '..';
-import { useAvPlayer } from './player';
+import { avPlayEngine } from './player';
 
 export interface AvPlayTrack {
   index: number;
@@ -91,11 +91,12 @@ export function tizenHost(): Host | null {
   host ??= {
     name: 'tizen',
     tv: true,
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- how the server lists the device
     device: () => ({ name: 'Samsung TV' }),
     exit: () => window.tizen?.application.getCurrentApplication().exit(),
     start: registerMediaKeys,
     ...(window.webapis?.avplay && {
-      usePlayer: useAvPlayer,
+      player: avPlayEngine,
       playerFeatures: ['audio'],
     }),
   };

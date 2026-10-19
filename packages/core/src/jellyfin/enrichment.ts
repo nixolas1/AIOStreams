@@ -12,12 +12,14 @@ import {
   normaliseLangCode,
   normaliseLanguage,
 } from '../utils/languages.js';
+import { countryName } from '../utils/countries.js';
 
 export interface EnrichedPerson {
   name: string;
   type: (typeof PERSON_TYPES)[keyof typeof PERSON_TYPES];
   role?: string;
   photo?: string;
+  id?: string;
 }
 
 export interface SeasonDetails {
@@ -166,7 +168,7 @@ const ID_FALLBACKS: [string, string][] = [
   ['anidb_id', 'anidb'],
 ];
 
-function providerIdsFrom(source: AnyObject): Record<string, string> {
+export function providerIdsFrom(source: AnyObject): Record<string, string> {
   const out: Record<string, string> = {};
   const declared = isObject(source.ids) ? Object.entries(source.ids) : [];
   const fallbacks = ID_FALLBACKS.map(([field, key]) => [key, source[field]]);
@@ -174,7 +176,7 @@ function providerIdsFrom(source: AnyObject): Record<string, string> {
     const jf = PROVIDER_KEYS[key as string];
     const v = str(raw);
     if (!jf || !v || out[jf]) continue;
-    out[jf] = key === 'imdb' && !v.startsWith('tt') ? `tt${v}` : v;
+    out[jf] = key === 'imdb' && /^\d+$/.test(v) ? `tt${v}` : v;
   }
   return out;
 }
@@ -210,12 +212,17 @@ function detailed(
     const type = name ? typeOf(entry) : undefined;
     if (!name || !type) return [];
     const role = str(entry.character);
+    const tmdb = str(entry.tmdbId);
+    const tvdb = str(entry.tvdbId);
     return [
       {
         name,
         type,
         role: role && role !== name ? role : undefined,
         photo: str(entry.photo),
+        id:
+          str(entry.id) ??
+          (tmdb ? `tmdb:${tmdb}` : tvdb ? `tvdb:${tvdb}` : undefined),
       },
     ];
   });
@@ -426,6 +433,12 @@ export function readEnrichment(input: MetaPreview | Meta): Enrichment {
   const extras = isObject(meta.app_extras) ? meta.app_extras : {};
   const stability = isObject(meta._stability) ? meta._stability : {};
   const country = str(meta.country);
+  // Whole first, as ISO names hold commas ("Korea, Republic of").
+  const countries = meta.countries?.length
+    ? meta.countries
+    : country && countryName(country)
+      ? [country]
+      : country?.split(',');
 
   return {
     providerIds: providerIdsFrom(meta),
@@ -443,9 +456,7 @@ export function readEnrichment(input: MetaPreview | Meta): Enrichment {
       str(meta.certificationLocal) ?? str(extras.certificationLocal),
     criticRating: criticRatingFrom(meta, extras),
     studios: strings([...(meta.studios ?? []), ...(meta.networks ?? [])]),
-    countries: meta.countries?.length
-      ? strings(meta.countries)
-      : strings(country?.split(',')),
+    countries: strings(strings(countries).map((c) => countryName(c) ?? c)),
     tags: strings(meta.tags),
     trailers: trailersFrom(meta),
     status: statusFrom(meta),

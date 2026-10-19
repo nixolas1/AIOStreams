@@ -7,8 +7,13 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-use crate::bridge::{self, OBSERVED, Outbound, THROTTLE_MS, THROTTLED};
+use crate::bridge::Outbound;
 use crate::mpv::{Event, Kind, Mpv};
+use crate::playback::{
+    self, Change, IMAGE_SUBTITLE_CODECS, Load, Loadfile, OBSERVED, Settings, Style, THROTTLE_MS,
+    THROTTLED,
+};
+use crate::sound::{self, Filters, Sound};
 
 pub type Emit = Arc<dyn Fn(Outbound) + Send + Sync>;
 
@@ -20,12 +25,51 @@ const LOGGED_PROPS: &[&str] = &[
     "hwdec",
     "audio-channels",
     "audio-spdif",
+    "audio-device",
+    "audio-delay",
 ];
+
+/// Observed for the sound filters, past the ids of the page's properties.
+const AUDIO_PARAMS: u64 = 1000;
 
 enum Request {
     Command(Vec<String>),
     SetProp(String, String),
     Sync,
+    AudioDevices,
+}
+
+/// The subtitle size, which a picture subtitle keeps at its own.
+#[derive(Default)]
+struct SubtitleScale {
+    scale: Option<f64>,
+    shown: Option<String>,
+    pictures: Vec<String>,
+    picture: bool,
+}
+
+impl SubtitleScale {
+    /// The `sub-scale` to set once the shown subtitle turns into a picture or back.
+    fn update(&mut self) -> Option<String> {
+        let picture = self
+            .shown
+            .as_ref()
+            .is_some_and(|id| self.pictures.contains(id));
+        if picture == self.picture {
+            return None;
+        }
+        self.picture = picture;
+        self.value()
+    }
+
+    fn value(&self) -> Option<String> {
+        let scale = self.scale?;
+        Some(if self.picture {
+            "1".into()
+        } else {
+            scale.to_string()
+        })
+    }
 }
 
 /// Makes the page's mpv calls on a thread of its own: the caller may be the render thread mpv waits on.
@@ -39,6 +83,13 @@ pub struct Player {
     /// The last value of each logged setting, so re-applying one logs nothing.
     logged: Mutex<HashMap<String, String>>,
     dolby_vision: Arc<AtomicBool>,
+    /// Settings the event thread hasn't applied yet.
+    sound: Arc<Mutex<Option<Sound>>>,
+    subtitles: Arc<Mutex<SubtitleScale>>,
+    /// The stats overlay's page, while it shows.
+    stats: Mutex<Option<String>>,
+    ac3_encoder: bool,
+    own_font: String,
     emit: Emit,
 }
 
@@ -60,6 +111,7 @@ impl Player {
         for (id, (name, kind)) in OBSERVED.iter().enumerate() {
             mpv.observe(name, *kind, id as u64)?;
         }
+        mpv.observe("audio-params", Kind::Json, AUDIO_PARAMS)?;
         let versions = (text(&mpv, "mpv-version"), text(&mpv, "ffmpeg-version"));
         log::info!(
             "mpv started version=\"{}\" ffmpeg={}",
@@ -68,12 +120,17 @@ impl Player {
         );
         let quit = Arc::new(AtomicBool::new(false));
         let dolby_vision = Arc::new(AtomicBool::new(true));
+        let ac3_encoder = sound::encodes_ac3(&mpv);
+        let own_font = text(&mpv, "sub-font").unwrap_or_default();
+        let sound = Arc::new(Mutex::new(None));
+        let subtitles = Arc::new(Mutex::new(SubtitleScale::default()));
         let events = std::thread::Builder::new()
             .name("mpv-events".into())
             .spawn({
                 let (mpv, emit, quit) = (mpv.clone(), emit.clone(), quit.clone());
-                let dolby_vision = dolby_vision.clone();
-                move || pump(&mpv, &emit, &quit, &dolby_vision)
+                let (dolby_vision, sound) = (dolby_vision.clone(), sound.clone());
+                let subtitles = subtitles.clone();
+                move || pump(&mpv, &emit, &quit, &dolby_vision, &sound, &subtitles)
             })
             .map_err(|e| e.to_string())?;
         let (requests, inbox) = mpsc::channel();
@@ -93,6 +150,11 @@ impl Player {
             versions,
             logged: Mutex::default(),
             dolby_vision,
+            sound,
+            subtitles,
+            stats: Mutex::default(),
+            ac3_encoder,
+            own_font,
             emit,
         })
     }
@@ -117,28 +179,111 @@ impl Player {
         }
     }
 
+    pub fn set_sound(&self, sound: Sound) {
+        log::info!("set sound={sound:?}");
+        if let Ok(mut pending) = self.sound.lock() {
+            *pending = Some(sound);
+        }
+        self.mpv.wakeup();
+    }
+
+    pub fn ac3_encoder(&self) -> bool {
+        self.ac3_encoder
+    }
+
     fn send(&self, request: Request) {
         if let Some(requests) = &self.requests {
             let _ = requests.send(request);
         }
     }
 
-    /// Errs only on refused arguments; mpv's own errors reach the page as a message.
-    pub fn command(&self, args: &[Value], local: &dyn Fn(&str) -> bool) -> Result<(), String> {
-        let args = bridge::command(args, local)?;
-        match args.as_slice() {
-            [name, url, _, _, options, ..] if name == "loadfile" => {
-                log::info!("load url={url} options={options}")
-            }
-            [name, url, ..] if name == "sub-add" => log::info!("add subtitle url={url}"),
-            _ => log::debug!("command {args:?}"),
+    /// Errs only on refused requests; mpv's own errors reach the page as a message.
+    pub fn load(&self, load: &Load, local: &dyn Fn(&str) -> bool) -> Result<(), String> {
+        let file = Loadfile::new(load, local)?;
+        log::info!("load url={} options={}", file.url, file.options.join(","));
+        for command in file.commands() {
+            self.send(Request::Command(command));
         }
-        self.send(Request::Command(args));
         Ok(())
     }
 
-    pub fn set_prop(&self, name: &str, value: &Value) -> Result<(), String> {
-        let value = bridge::set_prop(name, value)?;
+    pub fn change(&self, change: &Change) -> Result<(), String> {
+        for (name, value) in playback::change(change)? {
+            self.set(name, value);
+        }
+        Ok(())
+    }
+
+    pub fn seek(&self, position_ms: f64) {
+        self.send(Request::Command(vec![
+            "seek".into(),
+            format!("{:.3}", position_ms / 1000.0),
+            "absolute".into(),
+        ]));
+    }
+
+    pub fn add_subtitle_url(
+        &self,
+        url: &str,
+        title: &str,
+        language: &str,
+        local: &dyn Fn(&str) -> bool,
+    ) -> Result<(), String> {
+        playback::check_url(url, local)?;
+        log::info!("add subtitle url={url}");
+        self.send(Request::Command(vec![
+            "sub-add".into(),
+            url.into(),
+            "select".into(),
+            title.into(),
+            language.into(),
+        ]));
+        Ok(())
+    }
+
+    pub fn style(&self, style: &Style) -> Result<(), String> {
+        for (name, value) in playback::style(style, &self.own_font)? {
+            self.set(name, value);
+        }
+        let scale = self.subtitles.lock().ok().and_then(|mut s| {
+            s.scale = Some(style.subtitles.scale);
+            s.value()
+        });
+        if let Some(scale) = scale {
+            self.set("sub-scale", scale);
+        }
+        Ok(())
+    }
+
+    pub fn stats_overlay(&self, page: Option<&str>) -> Result<(), String> {
+        let Ok(mut shown) = self.stats.lock() else {
+            return Ok(());
+        };
+        for command in playback::stats_overlay(shown.as_deref(), page)? {
+            self.send(Request::Command(command));
+        }
+        *shown = page.map(String::from);
+        Ok(())
+    }
+
+    /// Only the user's own input.conf binds keys, since default bindings are off.
+    pub fn keypress(&self, key: &str) -> Result<(), String> {
+        if key.is_empty() || key.chars().any(char::is_whitespace) {
+            return Err("keypress takes one key name".into());
+        }
+        self.send(Request::Command(vec!["keypress".into(), key.into()]));
+        Ok(())
+    }
+
+    pub fn settings(&self, settings: &Settings) {
+        for (name, value) in playback::settings(settings, "auto-safe") {
+            self.set(name, value);
+        }
+        self.set_dolby_vision(settings.dolby_vision);
+        self.set_sound(settings.sound);
+    }
+
+    fn set(&self, name: &'static str, value: String) {
         let changed = LOGGED_PROPS.contains(&name)
             && self.logged.lock().is_ok_and(|mut logged| {
                 logged.insert(name.to_string(), value.clone()).as_ref() != Some(&value)
@@ -150,11 +295,15 @@ impl Player {
             log::debug!("set {name}={shown}");
         }
         self.send(Request::SetProp(name.to_string(), value));
-        Ok(())
     }
 
     pub fn sync(&self) {
         self.send(Request::Sync);
+    }
+
+    /// Answered with `audio-devices`.
+    pub fn audio_devices(&self) {
+        self.send(Request::AudioDevices);
     }
 
     /// Takes a file the app wrote itself, which the bridge's checks would refuse.
@@ -217,12 +366,16 @@ fn serve(mpv: &Mpv, emit: &Emit, inbox: &mpsc::Receiver<Request>) {
             Request::Sync => {
                 for (name, kind) in OBSERVED {
                     let data = mpv.get_property(name, *kind).unwrap_or(Value::Null);
-                    emit(Outbound::MpvProp {
-                        name: (*name).into(),
-                        data,
-                        external: false,
-                    });
+                    if let Some(message) = playback::report(name, &data, false) {
+                        emit(message);
+                    }
                 }
+            }
+            Request::AudioDevices => {
+                let devices = mpv
+                    .get_property("audio-device-list", Kind::Json)
+                    .unwrap_or(Value::Null);
+                emit(Outbound::AudioDevices { devices });
             }
         }
     }
@@ -390,11 +543,52 @@ fn reader_error(prefix: &str, level: &str, text: &str) -> Option<String> {
     }
 }
 
-fn pump(mpv: &Mpv, emit: &Emit, quit: &AtomicBool, dolby_vision: &AtomicBool) {
+/// Keeps a picture subtitle at its own size as the shown subtitle or the file's tracks change.
+fn follow_subtitle(mpv: &Mpv, subtitles: &Mutex<SubtitleScale>, name: &str, value: &Value) {
+    let Ok(mut s) = subtitles.lock() else { return };
+    match name {
+        "sid" => s.shown = value.as_str().map(String::from),
+        "track-list" => {
+            s.pictures = value
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|t| {
+                    t["type"] == "sub"
+                        && t["codec"]
+                            .as_str()
+                            .is_some_and(|c| IMAGE_SUBTITLE_CODECS.contains(&c))
+                })
+                .filter_map(|t| t["id"].as_u64().map(|id| id.to_string()))
+                .collect()
+        }
+        _ => return,
+    }
+    if let Some(scale) = s.update()
+        && let Err(e) = mpv.set_property("sub-scale", &scale)
+    {
+        log::warn!("mpv sub-scale={scale}: {e}");
+    }
+}
+
+fn pump(
+    mpv: &Mpv,
+    emit: &Emit,
+    quit: &AtomicBool,
+    dolby_vision: &AtomicBool,
+    pending: &Mutex<Option<Sound>>,
+    subtitles: &Mutex<SubtitleScale>,
+) {
+    let report = |name: &str, data: &Value| {
+        if let Some(message) = playback::report(name, data, false) {
+            emit(message);
+        }
+    };
     let json = |id: u64| {
-        OBSERVED
-            .get(id as usize)
-            .is_some_and(|(_, k)| *k == Kind::Json)
+        id == AUDIO_PARAMS
+            || OBSERVED
+                .get(id as usize)
+                .is_some_and(|(_, k)| *k == Kind::Json)
     };
     let mut throttle = Throttle::default();
     let mut mpv_log = MpvLog::default();
@@ -403,8 +597,14 @@ fn pump(mpv: &Mpv, emit: &Emit, quit: &AtomicBool, dolby_vision: &AtomicBool) {
     // mpv's error names only the step that failed; its http reader's first error says why.
     let mut cause: Option<String> = None;
     let mut stripping = false;
+    let mut sound = Sound::default();
+    let mut filters = Filters::default();
 
     while !quit.load(Ordering::SeqCst) {
+        if let Some(next) = pending.lock().ok().and_then(|mut p| p.take()) {
+            sound = next;
+            filters.apply(mpv, sound);
+        }
         if let Some(event) = mpv.wait_event(throttle.wait().as_secs_f64(), json) {
             match event {
                 Event::Shutdown => break,
@@ -416,39 +616,40 @@ fn pump(mpv: &Mpv, emit: &Emit, quit: &AtomicBool, dolby_vision: &AtomicBool) {
                     if cause.is_none() {
                         cause = reader_error(&prefix, &level, &text);
                     }
+                    if filters.refused(&prefix, &text) {
+                        filters.apply(mpv, sound);
+                    }
                     mpv_log.push(&level, &prefix, &text)
                 }
                 Event::StartFile => {
                     reported = false;
                     cause = None;
-                    emit(Outbound::MpvEvent {
-                        name: "start-file",
-                        external: false,
-                    })
+                    filters.start_file();
+                    filters.apply(mpv, sound);
+                    emit(playback::event("start-file", false).unwrap())
                 }
                 Event::FileLoaded => {
                     if stripping {
                         let _ = mpv.command(&["vf", "remove", DOLBY_VISION_FILTER]);
                     }
                     stripping = !dolby_vision.load(Ordering::SeqCst) && strip_dolby_vision(mpv);
-                    emit(Outbound::MpvEvent {
-                        name: "file-loaded",
-                        external: false,
-                    })
+                    filters.loaded(mpv);
+                    filters.apply(mpv, sound);
+                    // mpv reports the tracks it picked only after this event, which the page re-picks on.
+                    for name in ["aid", "sid"] {
+                        if let Some(value) = mpv.get_property(name, Kind::String) {
+                            report(name, &value);
+                        }
+                    }
+                    emit(playback::event("file-loaded", false).unwrap())
                 }
-                Event::Seek => emit(Outbound::MpvEvent {
-                    name: "seek",
-                    external: false,
-                }),
+                Event::Seek => {}
                 Event::PlaybackRestart => {
                     if !reported {
                         reported = true;
                         log_playing(mpv);
                     }
-                    emit(Outbound::MpvEvent {
-                        name: "playback-restart",
-                        external: false,
-                    })
+                    emit(playback::event("playback-restart", false).unwrap())
                 }
                 Event::EndFile { reason, error } => {
                     mpv_log.flush();
@@ -457,30 +658,26 @@ fn pump(mpv: &Mpv, emit: &Emit, quit: &AtomicBool, dolby_vision: &AtomicBool) {
                         None => log::info!("ended reason={reason}"),
                     }
                     let cause = cause.take().filter(|_| error.is_some());
-                    emit(Outbound::MpvEnded {
-                        reason,
-                        error,
-                        cause,
-                        external: false,
-                    });
+                    emit(playback::ended(reason, error, cause, false));
+                }
+                Event::Property {
+                    id: AUDIO_PARAMS,
+                    value,
+                    ..
+                } => {
+                    filters.decoded(&value);
+                    filters.apply(mpv, sound);
                 }
                 Event::Property { name, value, .. } => {
+                    follow_subtitle(mpv, subtitles, &name, &value);
                     if let Some((name, data)) = throttle.pass(name, value) {
-                        emit(Outbound::MpvProp {
-                            name,
-                            data,
-                            external: false,
-                        });
+                        report(&name, &data);
                     }
                 }
             }
         }
         for (name, data) in throttle.due() {
-            emit(Outbound::MpvProp {
-                name,
-                data,
-                external: false,
-            });
+            report(&name, &data);
         }
     }
 }

@@ -32,6 +32,7 @@ import {
   isUnairedVideo,
   itemKeyFor,
   placeholderMediaSource,
+  offeredSources,
   playableSources,
   airedEpisodeRefs,
   rememberedShowEpisodes,
@@ -62,6 +63,7 @@ import {
   type MetaPreview,
   type ParsedMeta,
   type PlaybackMemo,
+  type PlaySupport,
   type WatchStateRow,
   type SeasonGroup,
   type TrackPreferences,
@@ -73,7 +75,12 @@ import {
   ANDROID_PLAYER_CLIENT,
   type JellyfinRequestContext,
 } from './context.js';
-import { getMeta, resolveMarkerId, resolvePlayback } from './resolve.js';
+import {
+  getMeta,
+  maxVersionsFor,
+  resolveMarkerId,
+  resolvePlayback,
+} from './resolve.js';
 
 export function contentRefOf(d: ContentDescriptor): ContentRef {
   switch (d.k) {
@@ -443,9 +450,9 @@ export async function itemFromDescriptor(
     case 'genre':
       return buildGenre(ctx.build, d.t, d.c, d.g);
     case 'person': {
-      const item = buildPerson(ctx.build, d.n);
-      const found = await findPerson(ctx.userData, d.n);
-      const person = found ? withPersonDetails(item, found.person) : item;
+      const item = buildPerson(ctx.build, d);
+      const found = await findPerson(await ctx.engine(), ctx.userData, d);
+      const person = found ? withPersonDetails(item, found) : item;
       if ((person.ImageTags as Record<string, string> | undefined)?.Primary)
         return person;
       // Without TMDB, the photo is the one a cast list already showed.
@@ -745,6 +752,8 @@ export function mediaSourcesFrom(
     firstId: string;
     tracks: TrackPreferences;
     requestedMsid?: string;
+    onlyRequested?: boolean;
+    support?: PlaySupport;
     profile?: DeviceProfile;
     hasSegments?: boolean;
   }
@@ -758,10 +767,15 @@ export function mediaSourcesFrom(
         header: (name) => req.get(name),
         query: req.query as Record<string, unknown>,
       }).token;
-  let ordered = memo.sources;
+  let ordered = offeredSources(
+    memo.sources,
+    opts.support ?? {},
+    maxVersionsFor(ctx)
+  );
   if (opts.requestedMsid) {
     const idx = ordered.findIndex((s) => s.msid === opts.requestedMsid);
-    if (idx > 0)
+    if (idx >= 0 && opts.onlyRequested) ordered = [ordered[idx]];
+    else if (idx > 0)
       ordered = [
         ordered[idx],
         ...ordered.slice(0, idx),
@@ -867,12 +881,14 @@ export async function detailItem(
   };
   const memo = reusable ?? (shouldResolve ? await resolveNow() : null);
 
-  if (memo && memo.sources.length) {
-    const sources = mediaSourcesFrom(req, ctx, memo, {
-      firstId: itemId,
-      tracks: await trackPreferences(ctx),
-      requestedMsid: opts.requestedMsid,
-    });
+  const sources = memo
+    ? mediaSourcesFrom(req, ctx, memo, {
+        firstId: itemId,
+        tracks: await trackPreferences(ctx),
+        requestedMsid: opts.requestedMsid,
+      })
+    : [];
+  if (sources.length) {
     item.MediaSources = sources;
     item.MediaStreams = sources[0].MediaStreams;
     item.Container = sources[0].Container;

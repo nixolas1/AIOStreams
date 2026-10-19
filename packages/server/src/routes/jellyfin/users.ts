@@ -14,6 +14,7 @@ import {
   serverId as instanceServerId,
   sessionKeyFor,
   msToTicks,
+  AUDIO_TYPES,
   SUBTITLE_MODES,
   SUBTITLE_TYPES,
   WatchSessionRepository,
@@ -52,6 +53,7 @@ export function userConfiguration() {
     AudioLanguagePreference: '',
     AudioLanguages: [] as string[],
     PlayDefaultAudioTrack: true,
+    AudioTypes: [...AUDIO_TYPES] as string[],
     SubtitleLanguagePreference: '',
     SubtitleLanguages: [] as string[],
     SubtitleTypes: [...SUBTITLE_TYPES] as string[],
@@ -73,6 +75,11 @@ export function userConfiguration() {
 }
 
 const isLanguage = (v: unknown) => typeof v === 'string' && v.length <= 16;
+const isRanking = (all: readonly string[]) => (v: unknown) =>
+  Array.isArray(v) &&
+  v.length <= all.length &&
+  new Set(v).size === v.length &&
+  v.every((t) => all.includes(t));
 const isLanguageList = (v: unknown) =>
   Array.isArray(v) && v.length <= 10 && v.every((l) => isLanguage(l) && l);
 
@@ -83,11 +90,8 @@ const USER_PREFERENCES: Record<string, (value: unknown) => boolean> = {
   SubtitleLanguagePreference: isLanguage,
   SubtitleLanguages: isLanguageList,
   SubtitleMode: (v) => SUBTITLE_MODES.some((mode) => mode === v),
-  SubtitleTypes: (v) =>
-    Array.isArray(v) &&
-    v.length <= SUBTITLE_TYPES.length &&
-    new Set(v).size === v.length &&
-    v.every((t) => SUBTITLE_TYPES.some((type) => type === t)),
+  SubtitleTypes: isRanking(SUBTITLE_TYPES),
+  AudioTypes: isRanking(AUDIO_TYPES),
   ListPreferredSubtitlesOnly: (v) => typeof v === 'boolean',
   PlayDefaultAudioTrack: (v) => typeof v === 'boolean',
   RememberAudioSelections: (v) => typeof v === 'boolean',
@@ -134,7 +138,9 @@ export async function storedUserConfiguration(scope: WatchScope) {
   return { ...userConfiguration(), ...userPreferences(stored) };
 }
 
-export function userPolicy(opts: { admin?: boolean; hidden?: boolean } = {}) {
+export function userPolicy(
+  opts: { admin?: boolean; hidden?: boolean; forKey?: boolean } = {}
+) {
   return {
     IsAdministrator: opts.admin ?? false,
     IsHidden: opts.hidden ?? false,
@@ -179,7 +185,8 @@ export function userPolicy(opts: { admin?: boolean; hidden?: boolean } = {}) {
       'Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider',
     PasswordResetProviderId:
       'Jellyfin.Server.Implementations.Users.DefaultPasswordResetProvider',
-    SyncPlayAccess: 'None',
+    // A key has no session to join a group with.
+    SyncPlayAccess: opts.forKey ? 'None' : 'CreateAndJoinGroups',
   };
 }
 
@@ -221,7 +228,7 @@ export function userDto(
     LastActivityDate: now,
     Configuration: userConfiguration(),
     Policy: opts.forKey
-      ? userPolicy({ admin: !persona, hidden: persona?.hidden })
+      ? userPolicy({ admin: !persona, hidden: persona?.hidden, forKey: true })
       : userPolicy(),
   };
 }

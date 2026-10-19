@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { defineConfig, loadEnv } from '@rsbuild/core';
+import { defineConfig, loadEnv, type RsbuildConfig } from '@rsbuild/core';
 import { pluginReact } from '@rsbuild/plugin-react';
 
 const { parsed } = loadEnv({ prefixes: ['PUBLIC_'] });
@@ -64,10 +64,24 @@ export default defineConfig(({ envMode }) => {
     __STANDALONE__: JSON.stringify(standalone),
     __APP_COMMIT__: JSON.stringify(buildCommit()),
   };
+  const source = {
+    entry: { index: './src/main.tsx' },
+    define,
+    // Dependencies too, which are otherwise shipped as published: older browsers can't parse some of their syntax.
+    include: [/[\\/]node_modules[\\/]/],
+  };
+  // Lingui's macros compile at build time, and each catalog loads compiled.
+  const tools: RsbuildConfig['tools'] = {
+    swc: { jsc: { experimental: { plugins: [['@lingui/swc-plugin', {}]] } } },
+    rspack: {
+      module: { rules: [{ test: /\.po$/, use: '@lingui/loader' }] },
+    },
+  };
   if (standalone) {
     return {
       plugins: [pluginReact()],
-      source: { entry: { index: './src/main.tsx' }, define },
+      source,
+      tools,
       html: {
         template: './index.html',
         templateParameters: { root: './', icons: false },
@@ -83,7 +97,8 @@ export default defineConfig(({ envMode }) => {
   }
   return {
     plugins: [pluginReact()],
-    source: { entry: { index: './src/main.tsx' }, define },
+    source,
+    tools,
     html: {
       template: './index.html',
       templateParameters: { root: '/', icons: true },

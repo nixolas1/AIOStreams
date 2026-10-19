@@ -1,9 +1,12 @@
 import React from 'react';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import {
   BiCalendarAlt,
   BiCheck,
   BiChevronRight,
   BiDislike,
+  BiGroup,
   BiHeart,
   BiPlay,
   BiRevision,
@@ -19,6 +22,7 @@ import { Tooltip } from '@aiostreams/ui/tooltip';
 import { LuffyError } from '@aiostreams/ui/shared/luffy-error';
 import { cn } from '@aiostreams/ui/core/styling';
 import { useMediaQuery } from '@aiostreams/ui/hooks/media-query';
+import { formatLocale } from '../lib/i18n';
 import { currentHost } from '../lib/hosts';
 import { useSession } from '../lib/session';
 import { useFeature } from '../lib/server-info';
@@ -38,19 +42,22 @@ import {
 } from '../lib/queries';
 import {
   backdropUrls,
+  cardImages,
   cardShape,
   landscapeUrls,
   logoUrl,
   posterUrl,
+  animatedPosterOf,
 } from '../lib/images';
 import {
   clock,
   dayLabel,
   duration,
   episodeCode,
+  fullTitle,
   itemSubtitle,
   ticksToMs,
-  unavailableLabel,
+  unavailableKind,
   untilLabel,
 } from '../lib/format';
 import { href, itemPath, navigate, to } from '../lib/paths';
@@ -59,7 +66,7 @@ import { useInView, useNear } from '../lib/use-in-view';
 import { MediaRow } from '../components/media-row';
 import { PageMessage } from '../components/layout';
 import { MixedGrid } from '../components/mixed-grid';
-import { FocusRing, PosterCard } from '../components/cards';
+import { PosterCard } from '../components/cards';
 import { Overview } from '../components/overview';
 import {
   EpisodeCard,
@@ -80,6 +87,8 @@ import { useHold } from '../lib/use-hold';
 import { useExternalReturn } from '../lib/playback/external-return';
 import { CachedImage } from '../components/cached-image';
 import { TrailerButton } from '../components/trailers';
+import { openPartySheet } from '../components/party/party-sheet';
+import { useParty } from '../lib/party/party';
 import {
   DownloadButton,
   ShowDownloadMenu,
@@ -113,7 +122,7 @@ export function ItemPage({
   if (item.isError) {
     return (
       <PageMessage>
-        <LuffyError title="Could not load this title" className="mt-0" />
+        <LuffyError title={t`Could not load this title`} className="mt-0" />
       </PageMessage>
     );
   }
@@ -133,7 +142,7 @@ export function ItemPage({
       />
       <div
         data-ui="item-body"
-        className="relative z-[1] space-y-12 px-4 pb-16 pt-[38vh] lg:pl-0 lg:pr-10 lg:pt-[26vh]"
+        className="relative z-[1] space-y-12 px-4 pb-16 pt-[38vh] lg:ps-0 lg:pe-10 lg:pt-[26vh]"
       >
         {!data || data.Type === 'Episode' ? (
           <HeaderSkeleton />
@@ -172,13 +181,12 @@ function Backdrop({
 }) {
   const sources = poster ? [...images, poster] : images;
   const key = sources.join('|');
-  const [attempt, setAttempt] = React.useState(0);
-  const [loaded, setLoaded] = React.useState(false);
-  React.useEffect(() => {
-    setAttempt(0);
-    setLoaded(false);
-  }, [key]);
+  // Tied to the sources, not reset by an effect, which a cached image can load before.
+  const [failed, setFailed] = React.useState({ key: '', count: 0 });
+  const attempt = failed.key === key ? failed.count : 0;
+  const [loadedSrc, setLoadedSrc] = React.useState<string | null>(null);
   const src = sources[attempt];
+  const loaded = !!src && loadedSrc === src;
   const wash = attempt >= images.length;
   const image = src && (
     <CachedImage
@@ -187,8 +195,13 @@ function Backdrop({
       data-wash={wash || undefined}
       src={src}
       alt=""
-      onLoad={() => setLoaded(true)}
-      onError={() => setAttempt((n) => n + 1)}
+      onLoad={() => setLoadedSrc(src)}
+      onError={() =>
+        setFailed((f) => ({
+          key,
+          count: (f.key === key ? f.count : 0) + 1,
+        }))
+      }
       className={cn(
         'absolute inset-0 h-full w-full object-cover transition-opacity duration-700',
         wash ? 'scale-125 blur-3xl saturate-150' : 'object-top',
@@ -213,7 +226,7 @@ function Backdrop({
       <div
         data-ui="item-backdrop-shade"
         data-name="side"
-        className="absolute inset-0 hidden bg-gradient-to-r from-[--background] via-[--background]/60 via-40% to-transparent lg:block"
+        className="absolute inset-0 hidden bg-gradient-to-r from-[--background] via-[--background]/60 via-40% to-transparent lg:block rtl:bg-gradient-to-l"
       />
       <div
         data-ui="item-backdrop-shade"
@@ -337,14 +350,20 @@ function Header({ item, season }: { item: BaseItemDto; season?: BaseItemDto }) {
     target?.Type === 'Episode'
       ? episodeCode(target.ParentIndexNumber, target.IndexNumber)
       : '';
+  const resumeAt = clock(resumeMs);
   const playLabel = resumeMs
-    ? `Resume${code ? ` ${code}` : ` from ${clock(resumeMs)}`}`
-    : `Play${code ? ` ${code}` : ''}`;
+    ? code
+      ? t`Resume ${code}`
+      : t`Resume from ${resumeAt}`
+    : code
+      ? t`Play ${code}`
+      : t`Play`;
   const holdPlay = useHold(
     target
       ? () => picker.play(target, { startMs: resumeMs, held: true })
       : undefined
   );
+  const inParty = !!useParty();
   const holdRestart = useHold(
     target ? () => picker.play(target, { startMs: 0, held: true }) : undefined
   );
@@ -455,18 +474,45 @@ function Header({ item, season }: { item: BaseItemDto; season?: BaseItemDto }) {
                       intent="gray-subtle"
                       className="rounded-full"
                       icon={<BiRevision />}
-                      aria-label="Play from the start"
+                      aria-label={t`Play from the start`}
                       onClick={() => picker.play(target, { startMs: 0 })}
                       {...holdRestart}
                     />
                   }
                 >
-                  Play from the start
+                  <Trans>Play from the start</Trans>
                 </Tooltip>
               )}
             </div>
           )}
           <TrailerButton item={item} />
+          <Tooltip
+            trigger={
+              <IconButton
+                data-ui="item-action"
+                data-name="party"
+                intent="gray-subtle"
+                className="rounded-full"
+                icon={<BiGroup />}
+                aria-label={inParty ? t`Watch party` : t`Watch together`}
+                onClick={() =>
+                  openPartySheet(
+                    target && !inParty
+                      ? {
+                          play: {
+                            title: fullTitle(target),
+                            run: () =>
+                              picker.play(target, { startMs: resumeMs }),
+                          },
+                        }
+                      : {}
+                  )
+                }
+              />
+            }
+          >
+            {inParty ? t`Watch party` : t`Watch together`}
+          </Tooltip>
           <ItemToggles
             itemId={item.Id!}
             type={item.Type}
@@ -529,13 +575,13 @@ const ItemToggles = React.memo(function ItemToggles({
               intent={played ? 'primary-subtle' : 'gray-subtle'}
               className="rounded-full"
               icon={<BiCheck />}
-              aria-label={played ? 'Mark unwatched' : 'Mark watched'}
+              aria-label={played ? t`Mark unwatched` : t`Mark watched`}
               loading={setPlayed.isPending}
               onClick={() => setPlayed.mutate({ itemId, played: !played })}
             />
           }
         >
-          {played ? 'Mark unwatched' : 'Mark watched'}
+          {played ? t`Mark unwatched` : t`Mark watched`}
         </Tooltip>
       )}
       <Tooltip
@@ -547,13 +593,13 @@ const ItemToggles = React.memo(function ItemToggles({
             intent={favorite ? 'alert-subtle' : 'gray-subtle'}
             className="rounded-full"
             icon={favorite ? <BiSolidHeart /> : <BiHeart />}
-            aria-label={favorite ? 'Remove favourite' : 'Add favourite'}
+            aria-label={favorite ? t`Remove favourite` : t`Add favourite`}
             loading={setFavorite.isPending}
             onClick={() => setFavorite.mutate({ itemId, favorite: !favorite })}
           />
         }
       >
-        {favorite ? 'Remove favourite' : 'Add favourite'}
+        {favorite ? t`Remove favourite` : t`Add favourite`}
       </Tooltip>
       {canDrop && type === 'Series' && (
         <Tooltip
@@ -565,13 +611,13 @@ const ItemToggles = React.memo(function ItemToggles({
               intent={dropped ? 'warning-subtle' : 'gray-subtle'}
               className="rounded-full"
               icon={dropped ? <BiSolidDislike /> : <BiDislike />}
-              aria-label={dropped ? 'Undrop show' : 'Drop show'}
+              aria-label={dropped ? t`Undrop show` : t`Drop show`}
               loading={setDropped.isPending}
               onClick={() => setDropped.mutate({ itemId, dropped: !dropped })}
             />
           }
         >
-          {dropped ? 'Undrop show' : 'Drop show'}
+          {dropped ? t`Undrop show` : t`Drop show`}
         </Tooltip>
       )}
     </>
@@ -649,7 +695,7 @@ function Seasons({
   focusEpisodeId?: string;
   onSeason: (season: BaseItemDto | undefined) => void;
 }) {
-  const [layoutPref] = useSetting(settings.episodeLayout);
+  const [layoutPref] = useSetting(settings.interface.episodeLayout);
   const wide = useMediaQuery('(min-width: 1024px)');
   const layout = layoutPref === 'auto' ? (wide ? 'row' : 'list') : layoutPref;
   const seasons = useSeasons(series.Id!, true);
@@ -696,7 +742,7 @@ function Seasons({
       {summary}
       {summary && rateSeason && season && <span aria-hidden>·</span>}
       {rateSeason && season && (
-        <RatingButton item={season} label="Rate season" inline />
+        <RatingButton item={season} label={t`Rate season`} inline />
       )}
     </p>
   );
@@ -712,7 +758,7 @@ function Seasons({
   }, [episodes.data, focusEpisodeId]);
 
   return (
-    <Section name="episodes" title={ownPosters ? undefined : 'Episodes'}>
+    <Section name="episodes" title={ownPosters ? undefined : t`Episodes`}>
       {ownPosters ? (
         <SeasonPosters seasons={list} selected={seasonId} onSelect={pick} />
       ) : (
@@ -750,7 +796,7 @@ function Seasons({
                 summary &&
                 items.length > 1 && (
                   <AllEpisodes
-                    title={season?.Name ?? 'Episodes'}
+                    title={season?.Name ?? t`Episodes`}
                     summary={summary}
                     episodes={items}
                   />
@@ -801,7 +847,7 @@ const SeasonPosters = React.memo(function SeasonPosters({
   return (
     <MediaRow
       id="seasons"
-      title="Episodes"
+      title={t`Episodes`}
       shape="poster"
       itemClass="basis-[7rem] sm:basis-[8rem] lg:basis-[8.5rem]"
     >
@@ -816,9 +862,12 @@ const SeasonPosters = React.memo(function SeasonPosters({
               data-selected={isSelected || undefined}
               data-focus="own"
               onClick={() => onSelect(s.Id!)}
-              className="group/season w-full space-y-2 text-left"
+              className="group/season w-full space-y-2 text-start"
             >
-              <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-900">
+              <div
+                data-focus-frame
+                className="relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-900"
+              >
                 {poster && (
                   <CachedImage
                     src={poster}
@@ -831,7 +880,6 @@ const SeasonPosters = React.memo(function SeasonPosters({
                     )}
                   />
                 )}
-                <FocusRing className="group-focus-visible/season:opacity-100" />
                 {/* Drawn inside, since the row clips anything outside it. */}
                 <span
                   className={cn(
@@ -842,7 +890,7 @@ const SeasonPosters = React.memo(function SeasonPosters({
                 {s.UserData?.Played && (
                   <span
                     data-ui="watched-badge"
-                    className="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-brand-500 text-white"
+                    className="absolute end-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-brand-500 text-white"
                   >
                     <BiCheck />
                   </span>
@@ -885,10 +933,10 @@ function AllEpisodes({
           size="sm"
           intent="gray-outline"
           className="flex-none rounded-full"
-          rightIcon={<BiChevronRight />}
+          rightIcon={<BiChevronRight className="rtl:-scale-x-100" />}
           iconSpacing="0.25rem"
         >
-          All episodes
+          <Trans>All episodes</Trans>
         </Button>
       }
       title={title}
@@ -917,7 +965,7 @@ function seasonSummary(
   // A season without its own year carries the show's.
   const year = first ? new Date(first).getFullYear() : season.ProductionYear;
   const unaired = episodes.filter(
-    (e) => unavailableLabel(e) === 'Unaired'
+    (e) => unavailableKind(e) === 'unaired'
   ).length;
   return [
     year,
@@ -947,7 +995,7 @@ function SubCollections({ parent }: { parent: BaseItemDto }) {
   return (
     <MediaRow
       id="sub-collections"
-      title="Collections"
+      title={t`Collections`}
       shape={landscape ? 'wide' : 'poster'}
       loadingMore={isFetchingNextPage}
       onEndReached={more}
@@ -957,7 +1005,15 @@ function SubCollections({ parent }: { parent: BaseItemDto }) {
           <PosterCard
             href={href(itemPath(item))}
             shape={landscape ? 'landscape' : cardShape(item)}
-            image={(width) => posterUrl(client, item, { maxWidth: width })}
+            image={(width) =>
+              cardImages(
+                client,
+                item,
+                landscape ? 'landscape' : cardShape(item),
+                { maxWidth: width }
+              )
+            }
+            animated={animatedPosterOf(item)}
             title={item.Name ?? ''}
             subtitle={itemSubtitle(item)}
             watched={item.UserData?.Played}
@@ -986,14 +1042,16 @@ function Members({ parent }: { parent: BaseItemDto }) {
   return (
     <Section
       name="collection"
-      title="In this collection"
+      title={t`In this collection`}
       action={<KindTabs types={types} onChange={setTypes} />}
     >
       <div data-nav-start>
         <MixedGrid items={items} client={client} loading={pages.isLoading} />
       </div>
       {!pages.isLoading && !items.length && (
-        <p className="text-[--muted]">Nothing here.</p>
+        <p className="text-[--muted]">
+          <Trans>Nothing here.</Trans>
+        </p>
       )}
       {pages.isFetchingNextPage && (
         <Skeleton className="h-40 w-full rounded-xl" />
@@ -1003,14 +1061,39 @@ function Members({ parent }: { parent: BaseItemDto }) {
   );
 }
 
+const WEEKDAYS: NonNullable<BaseItemDto['AirDays']> = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
+/** When a series airs, in the app's language: `Every Sunday at 21:00`. */
+function airsLine(
+  days: BaseItemDto['AirDays'],
+  time: string | null | undefined
+): string | null {
+  if (!days?.length) return null;
+  const names = days.map((day) =>
+    // 1 January 2023 was a Sunday.
+    new Date(2023, 0, 1 + WEEKDAYS.indexOf(day)).toLocaleDateString(
+      formatLocale(),
+      { weekday: 'long' }
+    )
+  );
+  const list = new Intl.ListFormat(formatLocale(), {
+    type: 'conjunction',
+  }).format(names);
+  return time ? t`Every ${list} at ${time}` : t`Every ${list}`;
+}
+
 function Details({ item }: { item: BaseItemDto }) {
-  const airs = item.AirDays?.length
-    ? `${item.AirDays.map((d) => `${d}s`).join(', ')}${
-        item.AirTime ? ` at ${item.AirTime}` : ''
-      }`
-    : null;
+  const airs = airsLine(item.AirDays, item.AirTime);
   const released = item.PremiereDate
-    ? new Date(item.PremiereDate).toLocaleDateString(undefined, {
+    ? new Date(item.PremiereDate).toLocaleDateString(formatLocale(), {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
@@ -1018,23 +1101,23 @@ function Details({ item }: { item: BaseItemDto }) {
     : null;
   const rows: [string, string, React.ReactNode][] = (
     [
-      ['studios', 'Studios', item.Studios?.map((s) => s.Name).join(', ')],
+      ['studios', t`Studios`, item.Studios?.map((s) => s.Name).join(', ')],
       [
         'released',
-        item.Type === 'Series' ? 'First aired' : 'Released',
+        item.Type === 'Series' ? t`First aired` : t`Released`,
         released,
       ],
       [
         'airs',
-        'Airs',
+        t`Airs`,
         item.Type === 'Series' && item.Status === 'Continuing' ? airs : null,
       ],
-      ['country', 'Country', item.ProductionLocations?.join(', ')],
+      ['country', t`Country`, item.ProductionLocations?.join(', ')],
     ] as [string, string, React.ReactNode][]
   ).filter(([, , value]) => !!value);
   if (!rows.length) return null;
   return (
-    <Section name="details" title="Details">
+    <Section name="details" title={t`Details`}>
       <dl
         data-ui="item-details"
         className="grid max-w-5xl grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 xl:grid-cols-3"
@@ -1066,7 +1149,7 @@ function Similar({ itemId }: { itemId: string }) {
       {near && (
         <MediaRow
           id="similar"
-          title="More like this"
+          title={t`More like this`}
           shape="poster"
           loading={similar.isLoading}
         >
@@ -1075,6 +1158,7 @@ function Similar({ itemId }: { itemId: string }) {
               <PosterCard
                 href={href(itemPath(item))}
                 image={(width) => posterUrl(client, item, { maxWidth: width })}
+                animated={animatedPosterOf(item)}
                 title={item.Name ?? ''}
                 subtitle={itemSubtitle(item)}
                 watched={item.UserData?.Played}

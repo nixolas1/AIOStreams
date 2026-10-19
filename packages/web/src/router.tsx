@@ -1,3 +1,5 @@
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import React from 'react';
 import {
   createHashHistory,
@@ -246,16 +248,16 @@ const routeTree = rootRoute.addChildren([
 function NotFoundPage(): React.ReactElement {
   return (
     <PageMessage>
-      <LuffyError title="There is nothing here" className="mt-0">
+      <LuffyError title={t`There is nothing here`} className="mt-0">
         <p className="text-sm text-[--muted]">
-          The link may be old, or the page moved.
+          <Trans>The link may be old, or the page moved.</Trans>
         </p>
         <Button
           intent="white"
           className="mt-4 rounded-full"
           onClick={() => navigate(to.home, { replace: true })}
         >
-          Go home
+          <Trans>Go home</Trans>
         </Button>
       </LuffyError>
     </PageMessage>
@@ -276,7 +278,37 @@ setNavigator((path, { replace, keepScroll }) => {
   else return webRouter.history.push(path);
   // The history batches a tick's changes into one, so a push right after would drop this.
   if (replace) webRouter.history.flush();
-});
+}, startOver);
+
+let restarting: Promise<void> | undefined;
+
+// One at a time: two going back by the same count would leave the app.
+function startOver(path: string): Promise<void> {
+  return (restarting ??= goToFirstEntry(path).finally(() => {
+    restarting = undefined;
+  }));
+}
+
+async function goToFirstEntry(path: string) {
+  const { history } = webRouter;
+  const steps = history.location.state.__TSR_index;
+  if (steps > 0) {
+    await new Promise<void>((done) => {
+      const stop = history.subscribe(() => {
+        stop();
+        done();
+      });
+      // A go past the entries the browser still has does nothing, popstate included.
+      setTimeout(() => {
+        stop();
+        done();
+      }, 1000);
+      history.go(-steps);
+    });
+  }
+  history.replace(path);
+  history.flush();
+}
 
 /*
  * In-app links are plain anchors, so opening one in a new tab works. A plain

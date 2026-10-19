@@ -1,9 +1,10 @@
+import { t } from '@lingui/core/macro';
 import type { Host } from '..';
 import { runAction } from '../../input';
 import { onSettingsChange, settings, type PlayerEngine } from '../../settings';
-import { appBridge } from './bridge';
+import { appBridge, ask } from './bridge';
 import { shellDownloads } from './downloads';
-import { setEngine, useShellPlayer } from './player';
+import { appEngine, setEngine } from './player';
 import { resolveYouTube } from './youtube';
 
 let fullscreen = false;
@@ -15,23 +16,13 @@ let fullscreen = false;
 export function setupAndroid(): () => void {
   const bridge = appBridge();
   let engine: PlayerEngine | null = null;
-  let options = '';
-  const sendSettings = () => {
-    if (settings.android.engine.read() !== engine) {
-      engine = settings.android.engine.read();
-      bridge?.send({ type: 'player-engine', name: engine });
-    }
-    const next = {
-      frameRate: settings.android.frameRate.read(),
-      tunneling: settings.android.tunneling.read(),
-      dolbyVision: settings.desktop.dolbyVision.read(),
-    };
-    if (JSON.stringify(next) === options) return;
-    options = JSON.stringify(next);
-    bridge?.send({ type: 'player-options', ...next });
+  const sendEngine = () => {
+    if (settings.player.engine.read() === engine) return;
+    engine = settings.player.engine.read();
+    bridge?.send({ type: 'player-engine', name: engine });
   };
-  sendSettings();
-  const unsubscribeSettings = onSettingsChange(sendSettings);
+  sendEngine();
+  const unsubscribeSettings = onSettingsChange(sendEngine);
   const unsubscribe = bridge?.subscribe((m) => {
     if (m.type === 'fullscreen') fullscreen = m.value;
     else if (m.type === 'back') runAction('back');
@@ -57,35 +48,17 @@ export function setupAndroid(): () => void {
 }
 
 /** The app's mpv.conf, as it answers `mpv-config` and `mpv-config-save`. */
-function mpvConfig(message: { type: string; text?: string }): Promise<string> {
-  const bridge = appBridge();
-  if (!bridge) return Promise.reject(new Error('Only the Android app has one'));
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      stop();
-      reject(new Error('The app did not answer'));
-    }, 5000);
-    const stop = bridge.subscribe((m) => {
-      if (m.type === 'error') {
-        clearTimeout(timer);
-        stop();
-        reject(new Error(m.message));
-      } else if (m.type === 'mpv-config') {
-        clearTimeout(timer);
-        stop();
-        resolve(m.text);
-      }
-    });
-    bridge.send(message);
-  });
-}
+const mpvConfig = (message: { type: string; text?: string }) =>
+  ask(message, 'mpv-config', { timeoutMs: 5000, errors: true }).then(
+    (m) => m.text
+  );
 
 export const readMpvConfig = () => mpvConfig({ type: 'mpv-config' });
 
-const VOICE_ERRORS = {
-  'no-speech': 'Nothing was heard',
-  failed: 'Voice search failed',
-};
+const voiceErrors = () => ({
+  'no-speech': t`Nothing was heard`,
+  failed: t`Voice search failed`,
+});
 
 const listen: NonNullable<Host['listen']> = ({ hearing, signal }) =>
   new Promise((resolve, reject) => {
@@ -101,7 +74,7 @@ const listen: NonNullable<Host['listen']> = ({ hearing, signal }) =>
       if (m.type !== 'voice-result') return;
       stop?.();
       signal.removeEventListener('abort', cancel);
-      if (m.error) reject(new Error(VOICE_ERRORS[m.error]));
+      if (m.error) reject(new Error(voiceErrors()[m.error]));
       else resolve(m.text);
     });
     signal.addEventListener('abort', cancel, { once: true });
@@ -119,8 +92,8 @@ export const androidHost: Host = {
     return appBridge()?.tv === true;
   },
   device: () => ({ id: appBridge()?.deviceId, name: appBridge()?.device }),
-  usePlayer: useShellPlayer,
-  playerFeatures: ['audio', 'chapters', 'stats'],
+  player: appEngine,
+  playerFeatures: ['audio', 'chapters', 'stats', 'headers'],
   // A TV has little storage and is always online.
   get downloads() {
     return appBridge()?.tv ? undefined : shellDownloads;
@@ -145,16 +118,7 @@ export const androidHost: Host = {
   },
   exit: () => appBridge()?.send({ type: 'exit' }),
   levels: {
-    read: () =>
-      new Promise((resolve) => {
-        const bridge = appBridge();
-        const stop = bridge?.subscribe((m) => {
-          if (m.type !== 'levels') return;
-          stop?.();
-          resolve(m);
-        });
-        bridge?.send({ type: 'levels' });
-      }),
+    read: () => ask({ type: 'levels' }, 'levels'),
     set: (level, value) =>
       appBridge()?.send({ type: 'set-level', level, value }),
     release: () =>

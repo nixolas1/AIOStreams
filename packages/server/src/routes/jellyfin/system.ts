@@ -1,5 +1,6 @@
 import { Router, type Request } from 'express';
 import {
+  appReportsForward,
   config as appConfig,
   isConfigUuid,
   isEncrypted,
@@ -14,6 +15,7 @@ import {
   requestOrigin,
   resolveConfig,
 } from './context.js';
+import { relayMode } from '../../party/mode.js';
 
 const router: Router = Router({ mergeParams: true });
 
@@ -30,6 +32,8 @@ export function serverName(): string {
 const FEATURES = {
   /** Sign-in with a configuration's UUID or alias. */
   configSignIn: 1,
+  /** `POST /AIOStreams/Reports`, while `aiostreams.reports` says the server keeps them. */
+  reports: 1,
   /** `/AIOStreams/Users` and `/AIOStreams/Token`. */
   users: 1,
   /** `/AIOStreams/History`, its `Clear` and `Export`, and `/AIOStreams/Activity`. */
@@ -46,6 +50,8 @@ const FEATURES = {
   genreRequired: 1,
   /** A filler or recap episode says so, as `aiostreams.filler` or `aiostreams.recap`. */
   fillers: 1,
+  /** SyncPlay, and a watch party relay at `/party/v1`; `aiostreams.parties` says who it admits. */
+  parties: 1,
 } as const;
 
 export async function publicInfo(req: Request) {
@@ -65,6 +71,17 @@ export async function publicInfo(req: Request) {
       /** A user's own sign-in address, which signs in that user alone. */
       personal: !!req.jfMount?.persona,
       features: FEATURES,
+      // Not Branding's CustomCss, which stock clients apply too.
+      css: appConfig.branding.appCustomCss || null,
+      reports:
+        appConfig.appReports.accept === 'off'
+          ? null
+          : { forward: appReportsForward() },
+      parties: {
+        relay: relayMode(),
+        defaultRelay:
+          relayMode() === 'off' ? appConfig.party.defaultRelay : null,
+      },
       version: {
         tag: appConfig.bootstrap.tag,
         channel: appConfig.bootstrap.channel,

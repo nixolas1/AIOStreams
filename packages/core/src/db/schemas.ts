@@ -172,7 +172,7 @@ const JellyfinSettingsFields = z.object({
   /** Resolve streams when an item is opened so clients can offer a version picker. Default on. */
   resolveOnOpen: z.boolean().optional(),
   /** Versions offered per item; the instance setting caps it. */
-  maxVersions: z.number().int().min(1).max(50).optional(),
+  maxVersions: z.number().int().min(1).max(500).optional(),
   /** Offer skip markers, when the instance has them enabled at all. Default on. */
   segments: z.boolean().optional(),
   /** Which markers to offer. Absent means all of them. */
@@ -1236,6 +1236,7 @@ const ManifestCatalogSchema = z.object({
   extra: z.array(ManifestExtraSchema).optional(),
   poster: z.string().nullish(),
   background: z.string().nullish(),
+  idPrefixes: z.array(z.string()).nullish(),
 });
 
 const AddonCatalogDefinitionSchema = z.object({
@@ -1621,12 +1622,15 @@ const MetaPersonSchema = z.object({
   role: z.string(),
   character: z.string().nullish(),
   photo: z.string().nullish(),
+  id: z.string().nullish(),
 });
 
 export type MetaPerson = z.infer<typeof MetaPersonSchema>;
 
+const EntrySchema = z.looseObject({ id: z.string(), type: z.string() });
+
 const CollectionSchema = z.object({
-  items: z.array(z.looseObject({ id: z.string(), type: z.string() })).nullish(),
+  items: z.array(EntrySchema).nullish(),
   sources: z
     .array(
       z.object({
@@ -1646,6 +1650,7 @@ const metaExtensionFields = {
   originalTitle: z.string().nullish(),
   tagline: z.string().nullish(),
   landscapePoster: z.string().nullish(),
+  animatedPoster: z.string().nullish(),
   people: z.array(MetaPersonSchema).nullish(),
   certification: z.string().nullish(),
   certificationLocal: z.string().nullish(),
@@ -1669,6 +1674,10 @@ const metaExtensionFields = {
     )
     .nullish(),
   collection: CollectionSchema.nullish(),
+  birthday: z.string().nullish(),
+  deathday: z.string().nullish(),
+  birthPlace: z.string().nullish(),
+  credits: z.array(EntrySchema).nullish(),
 };
 
 const MetaVideoSchema = z

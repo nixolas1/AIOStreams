@@ -1,3 +1,5 @@
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import React from 'react';
 import {
   LuArrowLeft,
@@ -18,7 +20,7 @@ import { currentHost } from '../../lib/hosts';
 import { appBridge } from '../../lib/hosts/shell/bridge';
 import type { PlayerController } from '../../lib/playback/controller';
 import { settings, useSetting } from '../../lib/settings';
-import { delayLabel } from '../../lib/subtitles/delay';
+import { delayNotice } from '../../lib/subtitles/delay';
 import { useLatest } from '../../lib/use-latest';
 import type { BaseItemDto, MediaSegmentDto } from '../../lib/types';
 import { ControlButton, MiddleButton, PlayerAction } from './buttons';
@@ -34,7 +36,7 @@ import { usePlayerGestures } from './gestures';
 import { useBurstSeek, useFileDrop, useIdle, usePositionClock } from './hooks';
 import { usePlayerKeys } from './keys';
 import { ScreenLock } from './lock';
-import { canFit, FIT_LABELS, OptionButtons } from './options';
+import { fitLabel, OptionButtons } from './options';
 import { SeekBar } from './seek-bar';
 import { skipLabel, useSegmentSkip } from './segments';
 import { useHeldSpeed } from './speed';
@@ -64,6 +66,7 @@ export function PlayerControls({
   offeringNext = false,
   caption,
   steps,
+  onParty,
 }: {
   item: BaseItemDto;
   player: PlayerController;
@@ -78,7 +81,8 @@ export function PlayerControls({
   /** Under the title, in place of an episode's own line. */
   caption?: string;
   /** What previous and next move between, where it isn't the show's episodes. */
-  steps?: string;
+  steps?: 'episode' | 'trailer';
+  onParty?: () => void;
 }) {
   const { state } = player;
   const latest = useLatest(player);
@@ -104,19 +108,24 @@ export function PlayerControls({
     toMs: number;
   } | null>(null);
   const scrubbing = React.useRef(scrub);
-  // A player in its own window is watched there.
+  // Until the first frame only Back works; a player in its own window is watched there.
+  const ready = state.started || !!player.external;
   const visible =
     !!player.external ||
-    (!locked &&
+    (ready &&
+      !locked &&
       !hidden &&
       (!idle ||
         state.paused ||
         menus > 0 ||
-        !state.started ||
         picking !== null ||
         byEar ||
         episodes ||
         scrub !== null));
+  // The video appears without the controls, unless it opens paused.
+  React.useEffect(() => {
+    if (ready && !latest.current.state.paused) hide();
+  }, [ready, latest, hide]);
   useWindowButtons(visible);
   useFocusInside(root, visible, wake);
   useLiftSubtitles(player, bottomBar, visible);
@@ -129,7 +138,7 @@ export function PlayerControls({
     latest.current.togglePlay();
   };
 
-  const [seekStep] = useSetting(settings.seekStep);
+  const [seekStep] = useSetting(settings.controls.seekStep);
   const [burstSeek, seekingTo] = useBurstSeek(player);
   const seekBy = (deltaMs: number) => {
     burstSeek(deltaMs);
@@ -163,14 +172,17 @@ export function PlayerControls({
   const fileInput = React.useRef<HTMLInputElement>(null);
   const addSubtitleFile = (file: File) =>
     latest.current.subtitleFiles?.add(file).then(
-      () => showNotice(`Added ${file.name}`),
+      () => {
+        const { name } = file;
+        showNotice(t`Added ${name}`);
+      },
       (e: Error) => showNotice(e.message)
     );
   const dragging = useFileDrop(
     player.subtitleFiles ? addSubtitleFile : undefined
   );
 
-  const [fit, setFit] = useSetting(settings.videoFit);
+  const [fit, setFit] = useSetting(settings.video.fit);
   const shown = useLatest(visible);
   const gestures = usePlayerGestures({
     player,
@@ -200,12 +212,13 @@ export function PlayerControls({
         latest.current.seek(s.toMs);
       wake();
     },
-    onPinch: canFit(player)
+    onPinch: player.fit
       ? (out) => {
           const next = out ? 'crop' : 'fit';
           if (next === fit) return;
           setFit(next);
-          showNotice(`Picture: ${FIT_LABELS[next]}`);
+          const label = fitLabel(next);
+          showNotice(t`Picture: ${label}`);
         }
       : undefined,
   });
@@ -213,6 +226,7 @@ export function PlayerControls({
   usePlayerKeys({
     player,
     root,
+    ready,
     visible,
     wake,
     hide,
@@ -234,30 +248,37 @@ export function PlayerControls({
   const isEpisode = item.Type === 'Episode';
   const listsEpisodes = isEpisode && !!item.SeriesId && !!onEpisode;
   const stepping = steps ?? (isEpisode ? 'episode' : undefined);
+  const stepSeconds = seekStep;
   const subtitle = caption ?? (isEpisode ? itemSubtitle(item) : undefined);
   const spinner = <LuLoaderCircle className="animate-spin" />;
   const buttons: Record<string, Transport | false> = {
     previous: !!stepping && {
       name: 'previous',
-      label: `Previous ${stepping}`,
+      label: stepping === 'trailer' ? t`Previous trailer` : t`Previous episode`,
       icon: loadingEpisode === 'previous' ? spinner : <LuSkipBack />,
       onClick: onPrevious,
     },
     back: !touch && {
       name: 'back',
-      label: `Back ${seekStep} seconds`,
+      label: plural(stepSeconds, {
+        one: 'Back # second',
+        other: 'Back # seconds',
+      }),
       icon: <LuRotateCcw />,
       onClick: () => seekBy(-seekStep * 1000),
     },
     forward: !touch && {
       name: 'forward',
-      label: `Forward ${seekStep} seconds`,
+      label: plural(stepSeconds, {
+        one: 'Forward # second',
+        other: 'Forward # seconds',
+      }),
       icon: <LuRotateCw />,
       onClick: () => seekBy(seekStep * 1000),
     },
     next: !!stepping && {
       name: 'next',
-      label: `Next ${stepping}`,
+      label: stepping === 'trailer' ? t`Next trailer` : t`Next episode`,
       icon: loadingEpisode === 'next' ? spinner : <LuSkipForward />,
       onClick: onNext,
     },
@@ -300,6 +321,25 @@ export function PlayerControls({
     />
   );
 
+  if (!ready)
+    return (
+      <div
+        data-ui="player-controls"
+        data-loading
+        className="fixed inset-0 z-10 select-none"
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        {!tv && (
+          // Late, so a quick start never flashes it.
+          <div className="absolute start-[max(0.75rem,env(safe-area-inset-left))] top-[calc(0.75rem+env(safe-area-inset-top))] [animation:fade-in_300ms_ease-out_1.5s_both] sm:start-[max(1.25rem,env(safe-area-inset-left))] sm:top-[calc(1.25rem+env(safe-area-inset-top))]">
+            <ControlButton name="exit" label={t`Back`} onClick={onBack}>
+              <LuArrowLeft className="rtl:-scale-x-100" />
+            </ControlButton>
+          </div>
+        )}
+      </div>
+    );
+
   return (
     <div
       ref={root}
@@ -326,12 +366,12 @@ export function PlayerControls({
       <div
         data-ui="player-top-bar"
         className={cn(
-          'absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/80 to-transparent pb-12 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-[calc(0.75rem+env(safe-area-inset-top))] transition-opacity duration-300 sm:pl-[max(1.25rem,env(safe-area-inset-left))] sm:pr-[max(1.25rem,env(safe-area-inset-right))] sm:pt-[calc(1.25rem+env(safe-area-inset-top))]',
+          'absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/80 to-transparent pb-12 ps-[max(0.75rem,env(safe-area-inset-left))] pe-[max(0.75rem,env(safe-area-inset-right))] pt-[calc(0.75rem+env(safe-area-inset-top))] transition-opacity duration-300 sm:ps-[max(1.25rem,env(safe-area-inset-left))] sm:pe-[max(1.25rem,env(safe-area-inset-right))] sm:pt-[calc(1.25rem+env(safe-area-inset-top))]',
           barFade
         )}
       >
-        <ControlButton name="exit" label="Back" onClick={onBack}>
-          <LuArrowLeft />
+        <ControlButton name="exit" label={t`Back`} onClick={onBack}>
+          <LuArrowLeft className="rtl:-scale-x-100" />
         </ControlButton>
         <div
           data-ui="player-title"
@@ -352,8 +392,8 @@ export function PlayerControls({
         {touch && !tv && (
           <ControlButton
             name="lock"
-            label="Lock screen"
-            className="ml-auto"
+            label={t`Lock screen`}
+            className="ms-auto"
             onClick={() => {
               setLocked(true);
               hide();
@@ -371,12 +411,12 @@ export function PlayerControls({
         {middleButton(buttons.previous)}
         {middleButton(buttons.back)}
         {state.waiting && !state.error ? (
-          <LoadingSpinner containerClass="size-16 flex-none" iconClass="mr-0" />
+          <LoadingSpinner containerClass="size-16 flex-none" iconClass="me-0" />
         ) : (
           !tv && (
             <MiddleButton
               name="play"
-              label={state.paused ? 'Play' : 'Pause'}
+              label={state.paused ? t`Play` : t`Pause`}
               big
               onClick={togglePlay}
               className={middleShown}
@@ -407,7 +447,9 @@ export function PlayerControls({
         >
           <div className="rounded-2xl border-2 border-dashed border-white/40 px-10 py-8 text-center">
             <LuCaptions className="mx-auto mb-2 text-4xl" />
-            <p className="text-lg font-semibold">Drop to add subtitles</p>
+            <p className="text-lg font-semibold">
+              <Trans>Drop to add subtitles</Trans>
+            </p>
           </div>
         </div>
       )}
@@ -432,7 +474,7 @@ export function PlayerControls({
           onPick={(ms) => {
             player.setSubtitleDelay?.(ms);
             closePicker();
-            showNotice(`Subtitles ${delayLabel(ms).toLowerCase()}`);
+            showNotice(delayNotice(ms));
           }}
           onClose={closePicker}
         />
@@ -453,7 +495,7 @@ export function PlayerControls({
           data-type={segment.type}
           data-visible={visible || fresh || undefined}
           className={cn(
-            'absolute right-[max(1rem,env(safe-area-inset-right))] z-20 transition-[bottom,opacity] duration-300 sm:right-[max(2rem,env(safe-area-inset-right))]',
+            'absolute end-[max(1rem,env(safe-area-inset-right))] z-20 transition-[bottom,opacity] duration-300 sm:end-[max(2rem,env(safe-area-inset-right))]',
             visible
               ? 'bottom-[calc(7rem+env(safe-area-inset-bottom))] sm:bottom-[calc(8rem+env(safe-area-inset-bottom))]'
               : 'bottom-[calc(2rem+env(safe-area-inset-bottom))]',
@@ -475,7 +517,7 @@ export function PlayerControls({
         ref={bottomBar}
         data-ui="player-bottom-bar"
         className={cn(
-          'absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent pb-[calc(0.5rem+env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-16 transition-opacity duration-300 sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pl-[max(1.25rem,env(safe-area-inset-left))] sm:pr-[max(1.25rem,env(safe-area-inset-right))]',
+          'absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent pb-[calc(0.5rem+env(safe-area-inset-bottom))] ps-[max(0.75rem,env(safe-area-inset-left))] pe-[max(0.75rem,env(safe-area-inset-right))] pt-16 transition-opacity duration-300 sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:ps-[max(1.25rem,env(safe-area-inset-left))] sm:pe-[max(1.25rem,env(safe-area-inset-right))]',
           barFade
         )}
       >
@@ -501,7 +543,7 @@ export function PlayerControls({
           <div className={cn('hidden items-center gap-1', !touch && 'lg:flex')}>
             <ControlButton
               name="play"
-              label={state.paused ? 'Play' : 'Pause'}
+              label={state.paused ? t`Play` : t`Pause`}
               onClick={togglePlay}
             >
               {state.paused ? <LuPlay /> : <LuPause />}
@@ -514,7 +556,7 @@ export function PlayerControls({
           {!touch && !tv && <Volume player={player} />}
           <span
             data-ui="player-time"
-            className="ml-2 hidden whitespace-nowrap text-[length:var(--time)] tabular-nums text-gray-200 sm:inline"
+            className="ms-2 hidden whitespace-nowrap text-[length:var(--time)] tabular-nums text-gray-200 sm:inline"
           >
             {time}
           </span>
@@ -526,6 +568,7 @@ export function PlayerControls({
             onAddFile={() => fileInput.current?.click()}
             onSyncByEar={() => setByEar(true)}
             onSyncToLine={pickLine}
+            onParty={onParty}
             notice={showNotice}
           />
         </div>

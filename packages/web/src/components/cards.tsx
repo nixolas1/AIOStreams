@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { BiCheck, BiPlay } from 'react-icons/bi';
 import { cn } from '@aiostreams/ui/core/styling';
 import { useNear } from '../lib/use-in-view';
@@ -321,22 +321,6 @@ export function ProgressBar({ percent }: { percent: number }) {
   );
 }
 
-/** Laid over the artwork, which would cover a ring drawn on its frame. */
-export function FocusRing({ className }: { className: string }) {
-  return (
-    <span
-      aria-hidden
-      data-ui="focus-ring"
-      className={cn(
-        'pointer-events-none absolute inset-0 z-[1] rounded-[inherit] opacity-0 ring-2 ring-inset ring-[--ring]',
-        // Seen from across a room.
-        '[[data-tv]_&]:ring-[3px]',
-        className
-      )}
-    />
-  );
-}
-
 /** Points out the item a page opened on with a ring that blinks, then fades. */
 export function OpenedPulse() {
   return (
@@ -355,7 +339,7 @@ export function WatchedMark() {
   return (
     <span
       data-ui="watched-badge"
-      className="absolute right-2 top-2 z-[2] flex size-6 items-center justify-center rounded-full bg-brand-500 text-white shadow"
+      className="absolute end-2 top-2 z-[2] flex size-6 items-center justify-center rounded-full bg-brand-500 text-white shadow"
     >
       <BiCheck className="text-lg" />
     </span>
@@ -381,12 +365,36 @@ export interface PosterCardProps {
   unwatched?: number;
   progress?: number | null;
   className?: string;
+  /** Played over the poster while the card is hovered or focused. */
+  animated?: string;
+}
+
+function AnimatedPoster({ src }: { src: string }) {
+  const [loaded, setLoaded] = React.useState(false);
+  return (
+    <img
+      data-ui="poster-card-animated"
+      src={src}
+      alt=""
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onLoad={() => setLoaded(true)}
+      className={cn(
+        'absolute inset-0 h-full w-full scale-[1.04] object-cover transition-opacity duration-300',
+        loaded ? 'opacity-100' : 'opacity-0'
+      )}
+    />
+  );
 }
 
 export function PosterCard(props: PosterCardProps) {
   const { href, image, title, subtitle, watched, unwatched, progress } = props;
   const shape = props.shape ?? 'poster';
-  const [lines] = useSetting(settings.posterLines);
+  // Mounted only while active, so a row of them decodes nothing at rest.
+  const [active, setActive] = React.useState(false);
+  const still = useReducedMotion();
+  const animated = props.animated && !still ? props.animated : undefined;
+  const [lines] = useSetting(settings.interface.posterLines);
   const showTitle = lines.includes('title');
   const showSubtitle = !!subtitle && lines.includes('year');
   return (
@@ -399,9 +407,17 @@ export function PosterCard(props: PosterCardProps) {
       title={showTitle ? undefined : title}
       data-focus="own"
       className={cn('group/poster block space-y-2', props.className)}
+      {...(animated && {
+        onPointerEnter: () => setActive(true),
+        onPointerLeave: () => setActive(false),
+        onFocus: (e: React.FocusEvent<HTMLAnchorElement>) =>
+          setActive(e.currentTarget.matches(':focus-visible')),
+        onBlur: () => setActive(false),
+      })}
     >
       <div
         data-ui="poster-card-image"
+        data-focus-frame
         className={cn(
           'relative w-full overflow-hidden rounded-lg bg-gray-900 ring-1 ring-white/5',
           SHAPE_CLASS[shape]
@@ -412,16 +428,16 @@ export function PosterCard(props: PosterCardProps) {
           alt={title}
           className="group-hover/poster:scale-[1.04] group-focus-visible/poster:scale-[1.04]"
         />
+        {animated && active && <AnimatedPoster src={animated} />}
         <div
           data-ui="poster-card-shade"
           className="absolute inset-0 bg-black/20 opacity-0 transition-opacity [transition-duration:250ms] group-hover/poster:opacity-100 group-focus-visible/poster:opacity-100"
         />
-        <FocusRing className="group-focus-visible/poster:opacity-100" />
         {watched && <WatchedMark />}
         {!watched && !!unwatched && (
           <span
             data-ui="unwatched-count"
-            className="absolute right-2 top-2 z-[2] rounded-full bg-brand-500 px-2 py-0.5 text-xs font-semibold text-white shadow"
+            className="absolute end-2 top-2 z-[2] rounded-full bg-brand-500 px-2 py-0.5 text-xs font-semibold text-white shadow"
           >
             {unwatched}
           </span>
@@ -493,6 +509,7 @@ export function WideCard(props: WideCardProps) {
     <>
       <div
         data-ui="wide-card-image"
+        data-focus-frame
         className={cn(
           'relative aspect-video w-full overflow-hidden rounded-xl bg-gray-900 ring-1 ring-white/5',
           highlighted && 'ring-2 ring-brand-400'
@@ -517,14 +534,13 @@ export function WideCard(props: WideCardProps) {
         {badge && (
           <div
             data-ui="wide-card-badge"
-            className="absolute left-2 top-2 z-[2]"
+            className="absolute start-2 top-2 z-[2]"
           >
             {badge}
           </div>
         )}
         {watched && <WatchedMark />}
         {progress != null && progress > 0 && <ProgressBar percent={progress} />}
-        <FocusRing className="group-focus-visible/wide-link:opacity-100" />
       </div>
       <div
         data-ui="wide-card-text"
@@ -582,7 +598,7 @@ export function WideCard(props: WideCardProps) {
           type="button"
           onClick={onClick}
           data-focus="own"
-          className="group/wide-link block w-full space-y-2 text-left"
+          className="group/wide-link block w-full space-y-2 text-start"
         >
           {body}
         </button>

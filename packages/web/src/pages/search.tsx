@@ -1,3 +1,5 @@
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import React from 'react';
 import { toast } from 'sonner';
 import { BiHistory, BiMicrophone, BiSearch, BiX } from 'react-icons/bi';
@@ -18,7 +20,7 @@ import type { JellyfinClient } from '../lib/client';
 import { useSearch, useSearchSuggestions } from '../lib/queries';
 import { settings, useSetting } from '../lib/settings';
 import { useSearchHistory } from '../lib/search-history';
-import { cardShape, posterUrl } from '../lib/images';
+import { cardImages, cardShape, animatedPosterOf } from '../lib/images';
 import { itemSubtitle, progressOf } from '../lib/format';
 import { href, itemPath, navigate, to } from '../lib/paths';
 import type { BaseItemDto } from '../lib/types';
@@ -27,8 +29,19 @@ import { MixedGrid } from '../components/mixed-grid';
 import { MediaRow } from '../components/media-row';
 import { PosterCard } from '../components/cards';
 import { ItemMenu } from '../components/item-menu';
+import { PeopleRow } from '../components/people';
 
 const SUGGESTIONS = 5;
+
+function nameWords(text: string): string[] {
+  return (
+    text
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .toLowerCase()
+      .match(/[\p{L}\p{N}]+/gu) ?? []
+  );
+}
 
 export function SearchPage({ initialTerm }: { initialTerm: string }) {
   const { client, user } = useSession();
@@ -38,11 +51,12 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
   const typed = term.trim();
   const debounced = useDebounce(typed, 400);
   const query = typed === chosen ? typed : debounced;
-  const [combine] = useSetting(settings.combineSearch);
+  const [combine] = useSetting(settings.interface.combineSearch);
   // One search per kind, so neither fills the other's result limit.
   const mixed = useSearch(query, 'Movie,Series', combine);
   const movies = useSearch(query, 'Movie', !combine);
   const shows = useSearch(query, 'Series', !combine);
+  const people = useSearch(query, 'Person');
   const suggesting = typed !== chosen;
   const suggestions = useSearchSuggestions(
     useDebounce(typed, 200),
@@ -78,15 +92,41 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
   const showItems = shows.isPlaceholderData ? [] : (shows.data?.Items ?? []);
   const moviesLoading = movies.isLoading || movies.isPlaceholderData;
   const showsLoading = shows.isLoading || shows.isPlaceholderData;
-  const loading = combine ? mixed.isLoading : moviesLoading || showsLoading;
+  // Only people the term names; a search also matches aliases and near spellings.
+  const queryWords = nameWords(query);
+  const named = (people.isPlaceholderData ? [] : (people.data?.Items ?? []))
+    .map((person) => ({ person, words: nameWords(person.Name ?? '') }))
+    .filter(({ words }) =>
+      queryWords.every((q) => words.some((w) => w.startsWith(q)))
+    );
+  const peopleFirst = named.some(
+    ({ words }) => words.join(' ') === queryWords.join(' ')
+  );
+  const peopleRow = (
+    <PeopleRow
+      id="search:people"
+      title={t`People`}
+      people={named.map(({ person }) => ({
+        person: {
+          Id: person.Id,
+          Name: person.Name,
+          PrimaryImageTag: person.ImageTags?.Primary,
+        },
+      }))}
+    />
+  );
+  const loading =
+    (combine ? mixed.isLoading : moviesLoading || showsLoading) ||
+    people.isLoading ||
+    people.isPlaceholderData;
   const found = combine
-    ? !!mixed.data?.Items?.length
-    : !!movieItems.length || !!showItems.length;
+    ? !!mixed.data?.Items?.length || !!named.length
+    : !!movieItems.length || !!showItems.length || !!named.length;
 
   return (
     <PageBody>
       <h1 data-ui="page-title" className="text-3xl font-bold">
-        Search
+        <Trans>Search</Trans>
       </h1>
       <div className="flex max-w-xl items-center gap-2">
         {voiceFirst && voice.button}
@@ -100,7 +140,9 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') choose(term);
           }}
-          placeholder={voice?.hearing ? 'Listening…' : 'Movies and shows'}
+          placeholder={
+            voice?.hearing ? t`Listening…` : t`Movies, shows and people`
+          }
           leftIcon={<BiSearch className="text-xl" />}
           data-ui="search-input"
           fieldClass="flex-1"
@@ -132,16 +174,16 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
               data-ui="section-title"
               className="text-sm font-semibold text-[--muted]"
             >
-              Recent searches
+              <Trans>Recent searches</Trans>
             </h2>
             <Button size="sm" intent="gray-link" onClick={history.clear}>
-              Clear all
+              <Trans>Clear all</Trans>
             </Button>
           </div>
           <ul className="-mx-2">
-            {history.terms.map((t) => (
+            {history.terms.map((term) => (
               <li
-                key={t}
+                key={term}
                 data-ui="search-history-item"
                 className="flex items-center rounded-lg transition-colors hover:bg-white/[0.04]"
               >
@@ -150,14 +192,14 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
                   <ContextMenuTrigger asChild>
                     <TermButton
                       icon={<BiHistory />}
-                      label={t}
-                      onClick={() => choose(t)}
+                      label={term}
+                      onClick={() => choose(term)}
                     />
                   </ContextMenuTrigger>
                   <ContextMenuContent data-ui="search-history-menu">
-                    <ContextMenuItem onClick={() => history.remove(t)}>
+                    <ContextMenuItem onClick={() => history.remove(term)}>
                       <BiX />
-                      Remove
+                      <Trans>Remove</Trans>
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
@@ -165,10 +207,10 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
                   <IconButton
                     size="sm"
                     intent="gray-basic"
-                    className="mr-1 flex-none rounded-full"
+                    className="me-1 flex-none rounded-full"
                     icon={<BiX className="text-lg" />}
-                    aria-label={`Remove ${t}`}
-                    onClick={() => history.remove(t)}
+                    aria-label={t`Remove ${term}`}
+                    onClick={() => history.remove(term)}
                   />
                 )}
               </li>
@@ -179,10 +221,12 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
       {searching && (
         <div
           data-ui="search-results"
+          className="space-y-8"
           onClickCapture={(e) => {
             if ((e.target as HTMLElement).closest('a')) history.add(query);
           }}
         >
+          {peopleFirst && peopleRow}
           {combine ? (
             <MixedGrid
               items={mixed.data?.Items ?? []}
@@ -190,27 +234,30 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
               loading={mixed.isLoading}
             />
           ) : (
-            <div className="space-y-8">
+            <>
               <ResultRow
                 id="search:movies"
-                title="Movies"
+                title={t`Movies`}
                 items={movieItems}
                 loading={moviesLoading}
                 client={client}
               />
               <ResultRow
                 id="search:shows"
-                title="Shows"
+                title={t`Shows`}
                 items={showItems}
                 loading={showsLoading}
                 client={client}
               />
-            </div>
+            </>
           )}
+          {!peopleFirst && peopleRow}
         </div>
       )}
       {searching && !loading && !found && (
-        <p className="text-[--muted]">Nothing found for “{query}”.</p>
+        <p className="text-[--muted]">
+          <Trans>Nothing found for “{query}”.</Trans>
+        </p>
       )}
     </PageBody>
   );
@@ -240,7 +287,7 @@ const TermButton = React.forwardRef<
       type="button"
       data-focus="own"
       className={cn(
-        'flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2 text-left focus-visible:bg-white/10 [[data-tv]_&]:py-3',
+        'flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2 text-start focus-visible:bg-white/10 [[data-tv]_&]:py-3',
         className
       )}
       {...props}
@@ -284,7 +331,15 @@ function ResultRow({
           <PosterCard
             href={href(itemPath(item))}
             shape={landscape ? 'landscape' : cardShape(item)}
-            image={(width) => posterUrl(client, item, { maxWidth: width })}
+            image={(width) =>
+              cardImages(
+                client,
+                item,
+                landscape ? 'landscape' : cardShape(item),
+                { maxWidth: width }
+              )
+            }
+            animated={animatedPosterOf(item)}
             title={item.Name ?? ''}
             subtitle={itemSubtitle(item)}
             watched={item.UserData?.Played}
@@ -348,7 +403,7 @@ function useVoice(
         intent={hearing ? 'primary' : 'gray-subtle'}
         className="relative rounded-full"
         icon={<BiMicrophone className="text-xl" />}
-        aria-label={hearing ? 'Stop listening' : 'Search by voice'}
+        aria-label={hearing ? t`Stop listening` : t`Search by voice`}
         aria-pressed={!!hearing}
         onClick={toggle}
       />

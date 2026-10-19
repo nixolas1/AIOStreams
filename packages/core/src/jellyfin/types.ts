@@ -14,8 +14,10 @@ export type JellyfinDescriptor =
   | { k: 'boxset'; t: string; i: string }
   | { k: 'season'; t: string; i: string; s: number }
   | { k: 'episode'; t: string; i: string; s: number; e: number; v: string }
-  | { k: 'person'; n: string }
+  | { k: 'person'; n: string; i?: string }
   | { k: 'source'; h: string };
+
+export type PersonDescriptor = Extract<JellyfinDescriptor, { k: 'person' }>;
 
 export type ContentDescriptor = Extract<
   JellyfinDescriptor,
@@ -54,7 +56,17 @@ export interface AiostreamsSourceExtension {
   indexer?: string;
   mediaInfoQuality?: string;
   filename?: string;
+  folderName?: string;
+  editions?: string[];
+  /** The expressions and regexes it matched, named as the formatter names them. */
+  seMatched?: string;
+  rseMatched?: string[];
+  regexMatched?: string;
+  rankedRegexMatched?: string[];
+  seadex?: 'best' | 'alt';
   externalUrl?: string;
+  /** A YouTube video, which the client opens itself. */
+  ytId?: string;
   type: string;
   /** Stremio's: the next episode's version with the same group plays on. */
   bingeGroup?: string;
@@ -80,7 +92,16 @@ export interface MediaSourceRecord {
   live: boolean;
   /** Carries text only: an addon notice, a pipeline error or a statistic. */
   notice?: boolean;
+  /** Offered only to clients that support it. */
+  needs?: keyof PlaySupport;
   extension: AiostreamsSourceExtension;
+}
+
+/** What a client can play beyond a plain URL, as it says in PlaybackInfo. */
+export interface PlaySupport {
+  /** Sends a version's `RequiredHttpHeaders`. */
+  headers?: boolean;
+  youtube?: boolean;
 }
 
 export interface PlaybackMemo {
@@ -105,7 +126,7 @@ export interface MemoPointer {
   encryptedPassword: string;
   itemId: string;
   persona?: string;
-  /** Only on a play session's pointer. */
+  /** Only on the pointers to a play session. */
   scope?: string;
 }
 

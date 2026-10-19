@@ -17,6 +17,7 @@ import {
   genreId,
   personId,
   resolveMarkerId,
+  sharedEpisodeId,
   studioId,
   viewId,
 } from './ids.js';
@@ -29,6 +30,7 @@ import type {
   ItemImages,
   JellyfinDescriptor,
   JellyfinItem,
+  PersonDescriptor,
   QueryResult,
   UserItemDataDto,
 } from './types.js';
@@ -273,7 +275,7 @@ export function sortNameFor(name: string): string {
 
 function peopleDtos(people: EnrichedPerson[]) {
   return people.map((p) => {
-    const pid = personId(p.name);
+    const pid = personId(personDescriptorOf(p));
     if (p.photo) rememberImages(pid, { Primary: p.photo });
     return {
       Name: p.name,
@@ -369,19 +371,23 @@ export function buildGenre(
   };
 }
 
+function personDescriptorOf(p: EnrichedPerson): PersonDescriptor {
+  return { k: 'person', n: p.name, ...(p.id && { i: p.id }) };
+}
+
 export function buildPerson(
   ctx: ItemBuildContext,
-  name: string,
+  d: PersonDescriptor,
   photo?: string
 ): JellyfinItem {
-  const id = personId(name);
-  const item = baseItem(ctx, id, name, 'Person', false);
+  const id = personId(d);
+  const item = baseItem(ctx, id, d.n, 'Person', false);
   if (photo) {
     item.ImageTags = imageTagsFor({ Primary: photo }).ImageTags;
     rememberImages(id, { Primary: photo });
     item.PrimaryImageAspectRatio = 0.6666;
   }
-  return { ...item, _aio: { descriptor: { k: 'person', n: name } } };
+  return { ...item, _aio: { descriptor: d } };
 }
 
 export interface ContentBuildOptions {
@@ -563,6 +569,11 @@ export function buildContentItem(
   if (typeof meta.language === 'string')
     item.PreferredMetadataLanguage = meta.language;
   if (typeof meta.website === 'string') item.HomePageUrl = meta.website;
+  if (
+    typeof meta.animatedPoster === 'string' &&
+    /^https?:\/\//i.test(meta.animatedPoster)
+  )
+    item.aiostreams = { animatedPoster: meta.animatedPoster };
   if (jellyfinType === 'Movie' && ctx.listVersions) {
     item.EnableMediaSourceDisplay = true;
     item.MediaSources = listPlaceholderSources(
@@ -733,6 +744,7 @@ export function buildEpisode(
   rememberImages(id, images);
 
   const extra = readVideoEnrichment(video);
+  const sharedId = sharedEpisodeId(descriptor);
   const runtimeMs = extra.runtimeMs ?? parseRuntimeMs(meta.runtime);
   const premiere = toIso(video.released);
   const unaired = isUnairedVideo(video);
@@ -779,10 +791,11 @@ export function buildEpisode(
     ExternalUrls: externalUrls(extra.providerIds, 'episode'),
     UserData: userDataFromRow(id, playstate, runtimeMs),
     Path: path,
-    ...((extra.filler || extra.recap) && {
+    ...((extra.filler || extra.recap || sharedId) && {
       aiostreams: {
         ...(extra.filler && { filler: true }),
         ...(extra.recap && { recap: true }),
+        ...(sharedId && { sharedId }),
       },
     }),
     ...(missing || !ctx.listVersions

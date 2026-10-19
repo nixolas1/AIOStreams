@@ -1,15 +1,19 @@
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import React from 'react';
 import { BiArrowBack, BiLinkExternal } from 'react-icons/bi';
 import { LuArrowLeft, LuSkipBack, LuSkipForward } from 'react-icons/lu';
 import { Button, IconButton } from '@aiostreams/ui/button';
-import { LoadingSpinner } from '@aiostreams/ui/loading-spinner';
 import { cn } from '@aiostreams/ui/core/styling';
 import { useSession } from '../lib/session';
 import { useItem } from '../lib/queries';
 import { currentHost } from '../lib/hosts';
-import { useBrowserPlayer, usePlayerFullscreen } from '../lib/hosts/browser';
+import { usePlayerFullscreen } from '../lib/playback/fullscreen';
+import { usePlayer } from '../lib/playback/use-player';
+import { videoEngine } from '../lib/playback/video';
 import { useAction } from '../lib/input';
 import { settings, useSetting } from '../lib/settings';
+import { usePlaybackPrefs, type PlaybackPrefs } from '../lib/user-config';
 import { goBack, navigate, to } from '../lib/paths';
 import {
   trailersOf,
@@ -17,13 +21,11 @@ import {
   youTubeId,
   type Trailer,
 } from '../lib/playback/trailers';
-import type {
-  NativePlayerOptions,
-  PlayerController,
-} from '../lib/playback/controller';
+import type { PlayerController } from '../lib/playback/controller';
 import type { BaseItemDto, SourceInfo } from '../lib/types';
 import { PlayerControls } from '../components/player/controls';
-import { Cover, OBJECT_FIT, usePlayerPage } from './player';
+import { Cover } from '../components/player/cover';
+import { OBJECT_FIT, usePlayerPage } from './player';
 
 interface TrailerProps {
   item: BaseItemDto;
@@ -44,27 +46,24 @@ export function TrailerPage({
   const item = useItem(itemId);
   usePlayerPage();
   const host = currentHost();
-  usePlayerFullscreen(!host.usePlayer || !!host.fullscreen);
+  usePlayerFullscreen(!host.player || !!host.fullscreen);
   const trailers = item.data ? trailersOf(item.data) : [];
   const trailer = trailers[index];
   const playback = useTrailerPlayback(trailer?.url);
+  const prefs = usePlaybackPrefs();
   const back = () => goBack(to.item(itemId));
   const step = (by: number) =>
     navigate(to.trailer(itemId, index + by), { replace: true });
 
-  if (!item.data || (trailer && !playback.data)) {
+  if (!item.data || (trailer && !playback.data) || prefs.isLoading) {
     if (item.isError || playback.isError)
       return (
-        <TrailerFailure message="This trailer didn't load." onBack={back} />
+        <TrailerFailure message={t`This trailer didn't load.`} onBack={back} />
       );
-    return (
-      <Cover item={item.data}>
-        <LoadingSpinner />
-      </Cover>
-    );
+    return <Cover item={item.data} />;
   }
   if (!trailer || !playback.data)
-    return <TrailerFailure message="This trailer is gone." onBack={back} />;
+    return <TrailerFailure message={t`This trailer is gone.`} onBack={back} />;
   const props: TrailerProps = {
     item: item.data,
     trailer,
@@ -77,18 +76,14 @@ export function TrailerPage({
   if (found.kind === 'external')
     return (
       <TrailerFailure
-        message="This trailer can't play in the app."
+        message={t`This trailer can't play in the app.`}
         external={found.url}
         onBack={back}
       />
     );
   if (found.kind === 'embed')
     return <EmbeddedTrailer {...props} id={found.id} />;
-  return host.usePlayer ? (
-    <NativeTrailer {...props} url={found.url} usePlayer={host.usePlayer} />
-  ) : (
-    <BrowserTrailer {...props} url={found.url} />
-  );
+  return <PlayedTrailer {...props} url={found.url} prefs={prefs.prefs} />;
 }
 
 const sourceOf = (url: string): SourceInfo => ({
@@ -105,9 +100,10 @@ function Controls({
   onNext,
   several,
 }: TrailerProps & { player: PlayerController }) {
+  const failure = player.state.error ?? '';
   return player.state.error ? (
     <TrailerFailure
-      message={`This trailer didn't play: ${player.state.error}`}
+      message={t`This trailer didn't play: ${failure}`}
       external={youTubeId(trailer.url) ? trailer.url : undefined}
       onBack={onBack}
     />
@@ -125,61 +121,44 @@ function Controls({
   );
 }
 
-function NativeTrailer({
-  usePlayer,
+function PlayedTrailer({
   url,
+  prefs,
   ...props
-}: TrailerProps & {
-  url: string;
-  usePlayer: (opts: NativePlayerOptions) => PlayerController;
-}) {
+}: TrailerProps & { url: string; prefs: PlaybackPrefs }) {
   const { client } = useSession();
-  const [subtitleStyle] = useSetting(settings.subtitleStyle);
+  const video = React.useRef<HTMLVideoElement>(null);
+  const [hostPlayer] = React.useState(() => currentHost().player);
+  const [fit] = useSetting(settings.video.fit);
+  const [subtitleStyle] = useSetting(settings.subtitle.style);
   const source = React.useMemo(() => sourceOf(url), [url]);
-  const player = usePlayer({
+  const player = usePlayer(hostPlayer ?? videoEngine(video), {
     client,
     item: props.item,
     url,
     source,
     startMs: 0,
     onEnded: props.onBack,
-    prefs: {},
-    subtitleStyle,
-  });
-  return (
-    <div data-page="player" data-name="trailer" className="fixed inset-0">
-      <Cover item={props.item} hidden={player.state.started} />
-      <Controls {...props} player={player} />
-    </div>
-  );
-}
-
-function BrowserTrailer({ url, ...props }: TrailerProps & { url: string }) {
-  const video = React.useRef<HTMLVideoElement>(null);
-  const [fit] = useSetting(settings.videoFit);
-  const [subtitleStyle] = useSetting(settings.subtitleStyle);
-  const source = React.useMemo(() => sourceOf(url), [url]);
-  const player = useBrowserPlayer(video, {
-    source,
-    startMs: 0,
-    onEnded: props.onBack,
-    prefs: {},
+    prefs,
     subtitleStyle,
   });
   return (
     <div
       data-page="player"
       data-name="trailer"
-      className="fixed inset-0 bg-black"
+      className={cn('fixed inset-0', !hostPlayer && 'bg-black')}
     >
-      <video
-        ref={video}
-        data-ui="video"
-        src={url}
-        className={cn('h-full w-full', OBJECT_FIT[fit])}
-        autoPlay
-        playsInline
-      />
+      {hostPlayer ? (
+        <Cover item={props.item} hidden={player.state.started} />
+      ) : (
+        <video
+          ref={video}
+          data-ui="video"
+          className={cn('h-full w-full', OBJECT_FIT[fit])}
+          autoPlay
+          playsInline
+        />
+      )}
       <Controls {...props} player={player} />
     </div>
   );
@@ -222,15 +201,25 @@ function EmbeddedTrailer({
         data-ui="trailer-bar"
         className="flex items-center gap-3 px-[max(1rem,env(safe-area-inset-left))] pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]"
       >
-        {button('exit', 'Back', <LuArrowLeft />, onBack)}
+        {button(
+          'exit',
+          t`Back`,
+          <LuArrowLeft className="rtl:-scale-x-100" />,
+          onBack
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{item.Name}</p>
           <p className="truncate text-sm text-gray-300">{trailer.name}</p>
         </div>
         {several && (
           <>
-            {button('previous', 'Previous trailer', <LuSkipBack />, onPrevious)}
-            {button('next', 'Next trailer', <LuSkipForward />, onNext)}
+            {button(
+              'previous',
+              t`Previous trailer`,
+              <LuSkipBack />,
+              onPrevious
+            )}
+            {button('next', t`Next trailer`, <LuSkipForward />, onNext)}
           </>
         )}
       </div>
@@ -269,11 +258,11 @@ function TrailerFailure({
           <Button
             intent={external ? 'gray-outline' : 'white'}
             className="rounded-full"
-            leftIcon={<BiArrowBack />}
+            leftIcon={<BiArrowBack className="rtl:-scale-x-100" />}
             autoFocus={!external}
             onClick={onBack}
           >
-            Back
+            <Trans>Back</Trans>
           </Button>
           {external && (
             <Button
@@ -283,7 +272,7 @@ function TrailerFailure({
               autoFocus
               onClick={() => window.open(external, '_blank', 'noopener')}
             >
-              Open its page
+              <Trans>Open its page</Trans>
             </Button>
           )}
         </div>

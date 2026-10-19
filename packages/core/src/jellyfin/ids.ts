@@ -6,8 +6,13 @@ import { IdParser } from '../utils/id-parser.js';
 import { createLogger } from '../logging/logger.js';
 import type { WatchStateRow } from '../db/repositories/watch-state.js';
 import { matchedEpisodeOf, seriesIdOf } from '../watch-state/types.js';
+import { matchKeyFor } from '../watch-state/canonical.js';
 import { firstWriteOf } from './write-once.js';
-import type { ContentDescriptor, JellyfinDescriptor } from './types.js';
+import type {
+  ContentDescriptor,
+  JellyfinDescriptor,
+  PersonDescriptor,
+} from './types.js';
 
 const logger = createLogger('jellyfin');
 
@@ -74,10 +79,11 @@ const idCache = Cache.getInstance<string, JellyfinDescriptor>(
   100_000
 );
 const ID_CACHE_TTL = 30 * 24 * 3600;
-const personCache = Cache.getInstance<string, string>(
-  'jellyfin-persons',
-  50_000
-);
+/* Older entries are bare names. */
+const personCache = Cache.getInstance<
+  string,
+  Omit<PersonDescriptor, 'k'> | string
+>('jellyfin-persons', 50_000);
 const PERSON_TTL = 30 * 24 * 3600;
 
 export function hyphenless(id: string): string {
@@ -183,7 +189,60 @@ function tryPack(d: ContentDescriptor): string | null {
   return buf.toString('hex');
 }
 
-function unpack(buf: Buffer): ContentDescriptor | null {
+/**
+ * An episode's id under its own video id, when its series is known by another
+ * id and so its usual id is hashed: unlike that, any server resolves this one.
+ */
+export function sharedEpisodeId(d: ContentDescriptor): string | undefined {
+  if (d.k !== 'episode' || tryPack(d)) return undefined;
+  const parsed = IdParser.parse(d.v, d.t);
+  if (!parsed?.season || !parsed.episode || !ID_TYPE_CODES[parsed.type])
+    return undefined;
+  const numeric = numericOf(parsed);
+  if (numeric === null) return undefined;
+  return (
+    tryPack({
+      k: 'episode',
+      t: d.t,
+      i: rebuildBaseId(parsed.type, numeric),
+      s: Number(parsed.season),
+      e: Number(parsed.episode),
+      v: d.v,
+    }) ?? undefined
+  );
+}
+
+/** Other servers pack an episode numbered within its entry with no season. */
+async function entryEpisode(
+  type: string,
+  baseId: string,
+  episode: number
+): Promise<ContentDescriptor> {
+  const videoId = `${baseId}:${episode}`;
+  const matchKey = await matchKeyFor({
+    kind: 'episode',
+    type,
+    baseId,
+    episode,
+    videoId,
+  });
+  const at = watchRowEpisode({
+    mediaType: type,
+    season: null,
+    episode,
+    matchKey,
+  })!;
+  return {
+    k: 'episode',
+    t: type,
+    i: baseId,
+    s: at.season,
+    e: at.episode,
+    v: videoId,
+  };
+}
+
+async function unpack(buf: Buffer): Promise<ContentDescriptor | null> {
   const kind = KIND_BY_CODE[buf[1] >> 4];
   const idType = ID_TYPE_BY_CODE[buf[1] & 0x0f];
   const mediaType = MEDIA_TYPE_BY_CODE[buf[2]];
@@ -200,6 +259,7 @@ function unpack(buf: Buffer): ContentDescriptor | null {
     case 'season':
       return { k: 'season', t: mediaType, i: baseId, s: season };
     case 'episode': {
+      if (season === NONE16) return entryEpisode(mediaType, baseId, episode);
       const parsed = IdParser.parse(baseId, mediaType);
       if (!parsed) return null;
       return {
@@ -229,7 +289,7 @@ export function canonicalDescriptor(d: JellyfinDescriptor): string {
     case 'episode':
       return `episode|${d.t}|${d.i}|${d.s}|${d.e}|${d.v}`;
     case 'person':
-      return `person|${d.n}`;
+      return d.i ? `person|${d.n}|${d.i}` : `person|${d.n}`;
     case 'source':
       return `source|${d.h}`;
   }
@@ -288,10 +348,11 @@ export function genreId(
   return marked(MARK_GENRE, `genre|${type}|${catalogId}|${genre}`);
 }
 
-export function personId(name: string): string {
-  const id = marked(MARK_PERSON, `person|${name}`);
+export function personId(d: PersonDescriptor): string {
+  const id = marked(MARK_PERSON, canonicalDescriptor(d));
   if (firstWriteOf(id)) {
-    void personCache.set(id, name, PERSON_TTL).catch(() => undefined);
+    const ref = { n: d.n, i: d.i };
+    void personCache.set(id, ref, PERSON_TTL).catch(() => undefined);
   }
   return id;
 }
@@ -316,7 +377,7 @@ export function encodeItemId(d: JellyfinDescriptor): string {
     case 'genre':
       return genreId(d.t, d.c, d.g);
     case 'person':
-      return personId(d.n);
+      return personId(d);
     case 'source':
       return d.h;
     default: {
@@ -357,7 +418,7 @@ export async function decodeItemId(
   const buf = Buffer.from(hex, 'hex');
   switch (buf[0]) {
     case MARK_PACKED: {
-      const d = unpack(buf);
+      const d = await unpack(buf);
       return d ? { kind: 'descriptor', descriptor: d } : null;
     }
     case MARK_VIEW: {
@@ -386,10 +447,15 @@ export async function decodeItemId(
       return null;
     }
     case MARK_PERSON: {
-      const name = await personCache.get(hex).catch(() => undefined);
-      return name
-        ? { kind: 'descriptor', descriptor: { k: 'person', n: name } }
-        : null;
+      const ref = await personCache.get(hex).catch(() => undefined);
+      if (!ref) return null;
+      return {
+        kind: 'descriptor',
+        descriptor:
+          typeof ref === 'string'
+            ? { k: 'person', n: ref }
+            : { k: 'person', ...ref },
+      };
     }
     case MARK_SOURCE:
       return { kind: 'source', msid: hex };

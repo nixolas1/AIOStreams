@@ -7,17 +7,15 @@ export interface Chapter {
   startMs: number;
 }
 
-/** mpv's `chapter-list`, in order, without chapters it gives no time for. */
-export function parseChapters(data: unknown): Chapter[] {
-  if (!Array.isArray(data)) return [];
-  return data
-    .filter(
-      (c): c is { title?: unknown; time: number } =>
-        typeof c?.time === 'number' && Number.isFinite(c.time)
-    )
+/** The app's chapters, in order. */
+export function parseChapters(
+  chapters: { title?: string; startMs: number }[]
+): Chapter[] {
+  return chapters
+    .filter((c) => Number.isFinite(c.startMs))
     .map((c) => ({
-      title: typeof c.title === 'string' ? c.title.trim() : '',
-      startMs: Math.max(0, c.time * 1000),
+      title: c.title?.trim() ?? '',
+      startMs: Math.max(0, c.startMs),
     }))
     .sort((a, b) => a.startMs - b.startMs);
 }
@@ -34,6 +32,7 @@ export function chapterAt(chapters: Chapter[], ms: number): number {
 // A whole title, or the words before its first punctuation mark, once
 // lowercased and stripped of numbers, so "OP 2" and "OP - Song" match but
 // "The Opening of the Gates" and "Opening Night" do not.
+/* eslint-disable lingui/no-unlocalized-strings -- Jellyfin's segment kinds */
 const KINDS: [Kind, RegExp][] = [
   [
     'Intro' as Kind,
@@ -49,6 +48,7 @@ const KINDS: [Kind, RegExp][] = [
     /^(preview|next episode preview|next episode|next time)$/,
   ],
 ];
+/* eslint-enable lingui/no-unlocalized-strings */
 
 /** Names the cold open before the opening in some releases, so it counts only when nothing names the opening. */
 const LOOSE_INTRO = /^(intro|introduction)$/;
@@ -120,10 +120,12 @@ export function guessedSegments(
     const endMs = chapters[i + 1]?.startMs ?? durationMs;
     const lengthMs = endMs - chapter.startMs;
     if (lengthMs < SONG_MIN_MS || lengthMs > SONG_MAX_MS) return [];
+    /* eslint-disable lingui/no-unlocalized-strings -- Jellyfin's segment kinds */
     if (endMs <= durationMs / 3)
       return [segment('Intro' as Kind, chapter.startMs, endMs)];
     if (chapter.startMs >= (durationMs * 2) / 3)
       return [segment('Outro' as Kind, chapter.startMs, endMs)];
+    /* eslint-enable lingui/no-unlocalized-strings */
     return [];
   });
 }

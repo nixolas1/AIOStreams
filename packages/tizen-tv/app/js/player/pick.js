@@ -12,6 +12,8 @@ const VIDEO = { h264: 1, hevc: 1, vp9: 1, av1: 1, mpeg4: 1, mpeg2video: 1, vc1: 
 const AUDIO = { aac: 1, ac3: 1, eac3: 1, mp3: 1, mp2: 1, flac: 1, opus: 1, vorbis: 1, pcm: 1 };
 // Audio the TV cannot decode (no passthrough on a direct-played stream).
 const UNDECODABLE = { dts: 'DTS', truehd: 'TrueHD' };
+// Undecodable on the panel but may pass through to an eARC soundbar: playable, ranked last.
+const PASSTHROUGH = { truehd: 1 };
 
 // Jellyfin/ffprobe container names -> our whitelist keys.
 const CONTAINER_ALIAS = { matroska: 'mkv', mpeg: 'mpegts', quicktime: 'mov', mp42: 'mp4', isom: 'mp4' };
@@ -142,12 +144,17 @@ export function judge(source) {
   }
   if (f.audio.length) {
     let ok = false;
+    let passthrough = false;
     let bad = '';
     for (let i = 0; i < f.audio.length; i++) {
       if (AUDIO[f.audio[i]]) ok = true;
+      else if (PASSTHROUGH[f.audio[i]]) passthrough = true;
       else if (!bad) bad = UNDECODABLE[f.audio[i]] || f.audio[i].toUpperCase();
     }
-    if (!ok) {
+    if (!ok && passthrough && !bad) {
+      warn = true;
+      reasons.push('TrueHD audio only');
+    } else if (!ok) {
       playable = false;
       reasons.push(bad ? bad + ' audio only' : 'No supported audio');
     }

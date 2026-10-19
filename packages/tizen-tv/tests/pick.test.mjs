@@ -22,10 +22,11 @@ test('DTS next to a decodable track is playable', () => {
   assert.equal(judge(mixed).playable, true);
 });
 
-test('TrueHD alone is rejected', () => {
+test('TrueHD alone is playable with a passthrough warning', () => {
   const t = src('t', '2160p · Remux\nHEVC · TrueHD 7.1 Atmos\nEN');
   const j = judge(t);
-  assert.equal(j.playable, false);
+  assert.equal(j.playable, true);
+  assert.equal(j.warn, true);
   assert.match(j.reasons[0], /TrueHD/);
 });
 

@@ -139,8 +139,9 @@ try {
   await settle(500);
   assert.equal((await texts('.sources .src-row')).length, 3);
   const dim = await page.evaluate(() => Array.prototype.map.call(document.querySelectorAll('.sources .src-row'), (r) => r.classList.contains('dim')));
-  // Ranked: the h264 + EAC3 web-dl first, then the TrueHD-only remux and the DTS-only BluRay (both dimmed).
-  assert.deepEqual(dim, [false, true, true], 'dimmed rows ' + dim);
+  // Ranked: the h264 + EAC3 web-dl first, then the TrueHD-only remux (passthrough warning, not dimmed),
+  // then the DTS-only BluRay (dimmed).
+  assert.deepEqual(dim, [false, false, true], 'dimmed rows ' + dim);
   assert.ok((await text('.sources .src-row .src-chip.good')).indexOf('Recommended') === 0);
   await page.screenshot({ path: path.join(shots, 'sources.png') });
 

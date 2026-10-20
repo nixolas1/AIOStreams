@@ -49,6 +49,23 @@
 }
 .hero-chips { margin-top: 16px; height: 40px; overflow: hidden; white-space: nowrap; }
 
+/* Hero controls: slide count + progress (transform only) above the action pill; both sit right of the hero text, clear of the rows at y=600. */
+.hero-ctl { position: absolute; right: 96px; top: 462px; width: 520px; height: 120px; }
+.hero-slides { position: absolute; right: 0; top: 0; height: 32px; display: flex; align-items: center; }
+.hero-count { font: 600 24px/32px var(--body); color: var(--dim); margin-right: 18px; }
+.hero-bar { width: 240px; height: 6px; border-radius: 3px; background: rgba(255, 247, 230, 0.22); overflow: hidden; }
+.hero-bar i { display: block; width: 100%; height: 100%; background: var(--cream); transform-origin: 0 0; transform: scaleX(0); will-change: transform; }
+.hero-bar.paused i { opacity: 0; }
+.hero-pill {
+  position: absolute; right: 0; top: 56px; height: 56px; padding: 0 28px; border-radius: 28px; box-sizing: border-box;
+  display: flex; align-items: center; white-space: nowrap;
+  font: 600 24px/1 var(--body); color: var(--dim); background: rgba(11, 13, 18, 0.55);
+}
+.hero-pill b { font-weight: 700; margin-right: 10px; color: var(--text); }
+.hero-pill u { display: inline-block; width: 2px; height: 26px; margin: 0 24px; background: currentColor; opacity: 0.35; text-decoration: none; }
+.hero-pill.focus { background: var(--cream); color: var(--bg); box-shadow: 0 0 0 4px rgba(255, 247, 230, 0.35); }
+.hero-pill.focus b { color: var(--bg); }
+
 .browse-rows { position: absolute; left: 0; width: 1920px; bottom: 0; overflow: hidden; }
 .browse-empty { position: absolute; left: 96px; top: 660px; font: 500 28px var(--body); color: var(--dim); }
 

@@ -22,6 +22,9 @@ const TICKS_PER_MS = 10000;
 const PROGRESS_MS = 10000;
 const UPNEXT_SECONDS = 10;
 const SUBTITLE_POLL_MS = 120;
+// The server reruns a version list older than 180 s when asked for a current one; a version
+// from an older list may hold an expired debrid link (about an hour on public Comet).
+const RELIST_AFTER_MS = 150000;
 
 /** The last version each item played in; shared with screens/sources.js. */
 export function lastSourceKey(itemId) { return 'src.' + itemId; }
@@ -68,6 +71,8 @@ export function PlayerScreen(args) {
   el.appendChild(errorBox);
 
   let info = null;          // PlaybackInfo response in use
+  let infoAt = 0;           // when `info` was fetched here (0: handed in, age unknown)
+  let relisted = false;
   let sources = [];         // real (non-placeholder) sources
   let current = null;       // source being played
   let gen = 0;              // bumps per open; stale callbacks are ignored
@@ -188,7 +193,9 @@ export function PlayerScreen(args) {
     osd.render(0, durationFromItem(), true);
     try {
       info = opts.info && opts.info.MediaSources ? opts.info : null;
-      if (!info) info = await jf.playbackInfo(item.Id, { kept: true });
+      // A current list, not the kept one: the server only searches again past its reuse window,
+      // and a kept list hours old holds stream links that have expired.
+      if (!info) { info = await jf.playbackInfo(item.Id, {}); infoAt = Date.now(); }
       if (!alive) return;
       const all = (info && info.MediaSources) || [];
       sources = all.filter(isRealSource);
@@ -228,6 +235,7 @@ export function PlayerScreen(args) {
     osd.setBuffering(true);
     renderTitles();
     resetSubtitles();
+    position = atMs || 0;   // a failed open retries from here, not from 0
     const url = client.directUrl(item.Id, src, info ? info.PlaySessionId : undefined);
     player.open(url, { uhd: isUhd(src) && isUhdPanel() });
     let r;
@@ -250,6 +258,7 @@ export function PlayerScreen(args) {
     player.play();
     paused = false;
     started = true;
+    relisted = false;       // a link that expires later in a long session can be renewed again
     osd.setPaused(false);
     osd.setBuffering(false);
     osd.render(position, duration, true);
@@ -260,6 +269,13 @@ export function PlayerScreen(args) {
 
   function failed(msg, g) {
     if (!alive || g !== gen || failedState) return;
+    // An older list's link may have expired: ask once for a current list and reopen the same
+    // version (its id is stable across searches) where it stopped.
+    if (!relisted && current && (!infoAt || Date.now() - infoAt > RELIST_AFTER_MS)) {
+      relisted = true;
+      relist(current.Id, position);
+      return;
+    }
     // One automatic fallback to the next playable source.
     if (!triedFallback && current && sources.length > 1) {
       const next = nextSource(sources, current);
@@ -281,6 +297,24 @@ export function PlayerScreen(args) {
     errorBox.appendChild(h('div', 'player-error-msg', String(msg || 'Playback failed')));
     errorBox.appendChild(h('div', 'player-error-hint', 'OK  Try again   ·   Back  Exit'));
     errorBox.classList.remove('hidden');
+  }
+
+  function relist(id, atMs) {
+    const mine = ++gen;
+    player.close();
+    osd.setBuffering(true);
+    toast('Getting a fresh stream link…', 3000);
+    jf.playbackInfo(item.Id, {}).then(function (r) {
+      if (!alive || mine !== gen) return;
+      const fresh = ((r && r.MediaSources) || []).filter(isRealSource);
+      if (!fresh.length) throw new Error('No sources were found for this title');
+      info = r;
+      infoAt = Date.now();
+      sources = fresh;
+      let src = null;
+      for (let i = 0; i < fresh.length; i++) if (fresh[i].Id === id) src = fresh[i];
+      return openSource(src || pickSource(fresh), atMs);
+    }).catch(function (e) { if (alive) failed(e && e.message ? e.message : String(e), gen); });
   }
 
   function retry() {

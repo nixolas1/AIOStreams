@@ -116,13 +116,59 @@ try {
   let rows = await rowsInfo();
   assert.ok(rows.length >= 4, 'at least 4 rows, got ' + rows.map((r) => r.title).join(','));
   assert.ok(rows.filter((r) => r.imgs > 0).length >= 4, 'rows with images: ' + JSON.stringify(rows));
-  assert.ok(rows[0].active, 'first row active');
   assert.equal(rows[0].title, 'Continue watching');
+  assert.ok(!rows.some((r) => r.active), 'startup focus is the hero, not a row');
 
   // hero shows text
   const hero = await page.evaluate(() => ({ t: document.querySelector('[data-screen="home"] .hero-title').textContent, meta: document.querySelector('[data-screen="home"] .hero-meta').textContent }));
   assert.ok(hero.t.length > 0 && hero.meta.length > 0, 'hero text ' + JSON.stringify(hero));
   await page.screenshot({ path: path.join(outDir, 'home.png') });
+
+  // ---- hero zone: startup focus, slideshow count + progress, OK opens the shown item ----
+  const homeSel = '[data-screen="home"]';
+  const heroState = () => page.evaluate((h) => ({
+    pill: document.querySelector(h + ' .hero-pill').classList.contains('focus'),
+    count: document.querySelector(h + ' .hero-count').textContent,
+    barHidden: document.querySelector(h + ' .hero-slides').classList.contains('hidden'),
+    paused: document.querySelector(h + ' .hero-bar').classList.contains('paused'),
+    fill: document.querySelector(h + ' .hero-bar i').style.transform,
+    title: document.querySelector(h + ' .hero-title').textContent,
+  }), homeSel);
+  let hs = await heroState();
+  assert.ok(hs.pill, 'hero pill focused at startup');
+  assert.ok(!hs.barHidden && /^1 \/ \d+$/.test(hs.count), 'counter ' + hs.count);
+  const total = Number(hs.count.split(' / ')[1]);
+  assert.ok(total >= 2);
+  assert.ok(!hs.paused && hs.fill === 'scaleX(1)', 'progress running: ' + hs.fill);
+  await page.screenshot({ path: path.join(outDir, 'home-hero.png') });
+  await press('ArrowRight');
+  hs = await heroState();
+  assert.equal(hs.count, '2 / ' + total, 'right advances');
+  const second = hs.title;
+  await press('ArrowLeft', 2);
+  hs = await heroState();
+  assert.equal(hs.count, total + ' / ' + total, 'left wraps');
+  await press('ArrowRight', 2);
+  assert.equal((await heroState()).title, second);
+  // OK opens the detail of the shown slide
+  await press('Enter');
+  await page.waitForSelector('[data-screen="detail"] .detail-title, [data-screen="detail"]', { timeout: 5000 });
+  await page.waitForTimeout(400);
+  const dt = await page.evaluate(() => document.querySelector('[data-screen="detail"]').textContent);
+  assert.ok(dt.indexOf(second) >= 0, 'detail shows ' + second);
+  await press('Escape');
+  await page.waitForTimeout(300);
+  assert.ok((await heroState()).pill, 'hero focus restored after detail');
+  // down -> rows (progress paused), up -> hero again
+  await press('ArrowDown');
+  hs = await heroState();
+  assert.ok(!hs.pill && hs.paused, 'rows focused, rotation paused');
+  assert.ok((await rowsInfo())[0].active, 'first row active');
+  await page.screenshot({ path: path.join(outDir, 'home-rows.png') });
+  await press('ArrowUp');
+  hs = await heroState();
+  assert.ok(hs.pill && !hs.paused, 'back on hero, rotation resumed');
+  await press('ArrowDown');
 
   // right moves the track, down moves to the next row
   await press('ArrowRight');

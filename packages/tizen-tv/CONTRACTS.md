@@ -25,7 +25,7 @@ to one per animation frame; holding sets `html.fast` (`input.isFast()`).
 A focused `<input>` only forwards `back up down enter imedone imecancel`.
 Desktop: arrows, Enter, Esc/Backspace=back, Space=playpause, PageUp/PageDown.
 `input.inject(action)` feeds an action programmatically.
-OK outside a text field acts on release: `enter` on keyup, or `longenter` once it has been held ~600 ms (the
+OK outside a text field acts on release: `enter` on keyup, or `longenter` once it has been held ~450 ms (the
 following keyup is swallowed; auto-repeat keydowns are ignored; `util/longpress.js`). In a focused `<input>`, OK still
 dispatches `enter` immediately on keydown. `longenter` only reaches screens that set `longEnter: true` (the browse
 pages); `router.js` turns it into `enter` for every other screen and when the screen's `onKey('longenter')` does
@@ -58,7 +58,7 @@ not return true, so a long press never feels broken elsewhere.
   `endsAt(remainingMs[, now])` "21:42", `episodeLabel(item)` "S1 · E2", `metaLine(item)`
   "2008  ·  PG-13  ·  1h 46m  ·  ★ 5.8" (series: "N seasons"), `progressFraction(item)` 0..1 from UserData.
 - `util/time.js`: `sleep(ms)`, `debounce(fn, ms)` (+`.cancel()`).
-- `util/longpress.js`: `createLongPress(fire, {ms, now})` -> `{down(repeat), up(), cancel(), pressed()}`; `LONG_MS = 600`.
+- `util/longpress.js`: `createLongPress(fire, {ms, now})` -> `{down(repeat), up(), cancel(), pressed()}`; `LONG_MS = 450`.
 
 ## API
 
@@ -142,9 +142,9 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
   `sampleColors(img)`, `FALLBACK`. Colors are `{tl,tr,bl,br}` of `[r,g,b]`.
 - `ui/toast.js`: `toast(text[, ms])`.
 - `ui/confirm.js`: `createConfirm()` -> `{el, open({title, sub, confirm, cancel, onConfirm, onCancel}), close(), isOpen(), onKey(action)}`.
-  Append `el` to the screen; while open the screen forwards every key to `onKey`. Focus starts on Cancel.
+  Append `el` to the screen; while open the screen forwards every key to `onKey`. Focus starts on Cancel unless `open({defaultConfirm: true})` (the browse dismiss dialog: Remove is focused, Left/Right switch, Back cancels; the keyup that ends the long press is swallowed, so only a separate OK confirms).
 - `ui/row.js` also has `removeWhere(fn) -> n` (focus stays on the nearest survivor) and the helper `indexAfterRemove`.
-- Dismiss: long-press OK on a tile of the `resume` / `nextup` rows (`screens/hub.js`) asks "Remove ...?", then calls
+- Dismiss: long-press OK on a tile of the `resume` / `nextup` rows (`screens/hub.js`) asks "Remove ...?" (Remove focused by default), then calls
   `clearResume` / `dropSeries`, removes the tile in place, calls `hubs.invalidate(id)` and toasts. Detail
   (`DetailScreen({item, from})`, `nav.go('openItem', item, {from:'nextup'})`) shows "Remove from Continue watching" when the
   target has progress and "Remove from Next up" only when opened from the Next up row. `hubs.invalidate(key)` /
@@ -152,6 +152,10 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
 - `ui/grid.js` / `ui/chips.js` / `ui/topbar.js`: see the notes added when they land (below).
 - Browse items are Jellyfin DTOs; items restored from the first-paint cache are **slim** (see `hubs.slim`), so a detail
   screen must re-fetch `jellyfin.item(id)` for full data. Items listed from a classified view carry `_kind` ('movie'|'series'|'anime').
+- Browse zones (`screens/hub.js`): `nav` -> `hero` -> `rows`. `hero` exists while the spotlight has items and is the startup zone
+  (until the first key). In `hero`: OK/long OK opens the shown slide, play/playpause plays it, left/right change slide (wrap), up/back go
+  to `nav`, down to `rows`. Rotation (`SPOT_MS` per-slide timeout, count "i / n" and a `scaleX` progress bar) runs in `hero`/`nav` and
+  before any move, and is paused in `rows`. Pure helpers: `ui/spotlight.js` (`wrapIndex`, `nextZone`).
 - `api/hubs.js`: `kindOf(item)`, `classify(views)`, `viewsFor(kind)`, `recipesFor(kind)`, `homeRecipes()`, `loadViews()`.
 - Tabs: `nav.go('openHub', kind)` with `kind` = `'home'|'movies'|'series'|'anime'` switches tab (replaces the tab screen when a
   tab screen is on top, otherwise pushes). Tab screens set `screen.tab = true`.

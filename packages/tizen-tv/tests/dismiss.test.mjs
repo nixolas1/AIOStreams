@@ -58,6 +58,19 @@ test('long press: holding fires longenter once and swallows the release', () => 
   });
 });
 
+test('long press: the keyup after a long press is swallowed (never a second enter)', () => {
+  withTimers((t) => {
+    const out = [];
+    const lp = createLongPress((a) => out.push(a));
+    lp.down(false);
+    t.fireAll();
+    assert.deepEqual(out, ['longenter']);
+    assert.equal(lp.up(), true); // consumed, no 'enter'
+    assert.deepEqual(out, ['longenter']);
+    assert.equal(LONG_MS, 450);
+  });
+});
+
 test('long press: auto-repeat keydowns do not restart the timer', () => {
   withTimers((t) => {
     const out = [];

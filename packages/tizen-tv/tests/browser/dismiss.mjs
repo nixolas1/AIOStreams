@@ -161,15 +161,22 @@ try {
   const activeRow = () => page.evaluate((h) => { const r = document.querySelector(h + ' .row.active .row-title'); return r ? r.textContent : ''; }, home);
   const goToRow = async (title) => { for (let i = 0; i < 10 && (await activeRow()) !== title; i++) await press('ArrowDown'); assert.equal(await activeRow(), title); };
 
+  await press('ArrowDown'); // startup focus is the hero
   assert.equal(await activeRow(), 'Continue watching');
   assert.deepEqual(await rowTitles().then((t) => t.slice(0, 2)), ['Continue watching', 'Next up']);
   assert.equal(await visibleTiles('Continue watching'), 3);
   const before = await screens();
 
-  // cancel (default focus) sends nothing and the release opens nothing
+  // the release of the long press neither confirms nor opens; Remove is focused by default, Right picks Cancel
   await hold('Enter', 800);
   assert.equal(await dialog(), 'Remove from Continue watching?');
   await page.screenshot({ path: path.join(shots, 'dismiss-confirm.png') });
+  await page.waitForTimeout(300);
+  assert.equal(await dialog(), 'Remove from Continue watching?', 'dialog survives the long-press release');
+  assert.equal(server.userLog.length, 0, 'release did not confirm');
+  assert.equal(await text('[data-dialog="confirm"]:not(.hidden) .btn.focus'), 'Remove');
+  await press('ArrowRight');
+  assert.equal(await text('[data-dialog="confirm"]:not(.hidden) .btn.focus'), 'Cancel');
   await press('Enter'); // Cancel
   assert.equal(await dialog(), '');
   assert.equal(server.userLog.length, 0);
@@ -178,8 +185,7 @@ try {
   // a failing request keeps the tile and says so
   server.knobs.userStatus = 500;
   await hold('Enter', 800);
-  await press('ArrowLeft');
-  await press('Enter'); // Remove
+  await press('Enter'); // Remove (default focus)
   await page.waitForFunction(() => /Couldn't remove/.test((document.querySelector('.toast.on') || {}).textContent || ''), null, { timeout: 3000 });
   assert.equal(await visibleTiles('Continue watching'), 3);
   server.knobs.userStatus = 0;
@@ -244,7 +250,6 @@ try {
   server.userLog.length = 0;
   await goToRow('Continue watching');
   await hold('Enter', 800);
-  await press('ArrowLeft');
   await press('Enter');
   await page.waitForFunction(() => /Removed from Continue watching/.test((document.querySelector('.toast.on') || {}).textContent || ''), null, { timeout: 3000 });
   assert.equal(await visibleTiles('Continue watching'), 1);
@@ -255,7 +260,6 @@ try {
   await goToRow('Next up');
   await hold('Enter', 800);
   assert.ok(/^Remove .+ from Next up\?$/.test(await dialog()), await dialog());
-  await press('ArrowLeft');
   await press('Enter');
   await page.waitForFunction(() => /Removed from Next up/.test((document.querySelector('.toast.on') || {}).textContent || ''), null, { timeout: 3000 });
   assert.equal(await visibleTiles('Next up'), 1);

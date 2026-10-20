@@ -2,7 +2,8 @@
 //   const dlg = createConfirm(); screen.el.appendChild(dlg.el);
 //   dlg.open({title, sub, confirm: 'Remove', cancel: 'Cancel', onConfirm, onCancel});
 //   screen.onKey: if (dlg.isOpen()) return dlg.onKey(action);
-// Focus starts on the cancel button so a stray OK never confirms.
+// Focus starts on the cancel button so a stray OK never confirms, unless `open({defaultConfirm: true})`
+// (dismiss after a long press: the next, separate OK confirms).
 import { h, setText, toggleClass, show } from '../util/dom.js';
 
 export function createConfirm() {
@@ -31,7 +32,7 @@ export function createConfirm() {
     isOpen: function () { return !!opts; },
     open: function (o) {
       opts = o;
-      onOk = false;
+      onOk = !!o.defaultConfirm;
       setText(title, o.title || '');
       setText(sub, o.sub || '');
       show(sub, !!o.sub);

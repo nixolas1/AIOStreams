@@ -10,6 +10,7 @@ import { createConfirm } from '../ui/confirm.js';
 import { useAmbience, HeroArt } from '../ui/backdrop.js';
 import { imageFor } from '../ui/tile.js';
 import { prefetch } from '../ui/images.js';
+import { wrapIndex, nextZone } from '../ui/spotlight.js';
 import { toast } from '../ui/toast.js';
 import { isFast } from '../input.js';
 import * as nav from '../nav.js';
@@ -56,6 +57,15 @@ export function createBrowsePage(opts) {
   const heroSummary = add(info, 'p', 'hero-summary');
   const heroChips = add(info, 'div', 'hero-chips');
 
+  // Slideshow controls: count + progress bar (>= 2 slides) and the action pill (focus affordance of the 'hero' zone).
+  const ctl = add(el, 'div', 'hero-ctl');
+  const slideBar = add(ctl, 'div', 'hero-slides hidden');
+  const slideCount = add(slideBar, 'span', 'hero-count');
+  const slideTrack = add(slideBar, 'div', 'hero-bar');
+  const slideFill = add(slideTrack, 'i');
+  const heroPill = add(ctl, 'div', 'hero-pill hidden');
+  heroPill.innerHTML = '<b>OK</b> Details<u></u><b>\u25B6</b> Play';
+
   const clip = add(el, 'div', 'browse-rows');
   clip.style.top = ROWS_TOP + 'px';
   const track = add(clip, 'div', 'rows-track');
@@ -68,6 +78,9 @@ export function createBrowsePage(opts) {
   let rowIndex = 0;
   let focusSlot = null;
   let moved = false;       // any focus move since the page opened
+  let touched = false;     // any key since the page opened
+  let spotKey = '';
+  let barOn = false;
   let spot = [];
   let spotIndex = 0;
   let spotTimer = 0;
@@ -144,21 +157,64 @@ export function createBrowsePage(opts) {
     });
     spot = next.slice(0, 5);
     if (spotIndex >= spot.length) spotIndex = 0;
-    if (spot.length && (!moved || zone === 'nav')) showHero(spot[spotIndex]);
+    if (!spot.length && zone === 'hero') zone = 'rows';
+    else if (spot.length && !touched && zone === 'rows') zone = 'hero';
+    syncZone();
+    if (spot.length && (!moved || zone !== 'rows')) showHero(spot[spotIndex]);
     else if (!heroItem && slots.length) {
       // No spotlight art at all: show the first item of the first row.
       const vis = visible();
       if (vis.length && vis[0].ui.item && vis[0].ui.item() && !vis[0].recipe.chips) showHero(vis[0].ui.item());
     }
+    const key = spot.map(function (it) { return it.Id; }).join('|');
+    if (key !== spotKey) { spotKey = key; armSpot(); }
+  }
+
+  function canSpin() {
+    return shown && !document.hidden && spot.length >= 2 && (zone !== 'rows' || !moved);
+  }
+
+  // Count + progress bar. The bar fills over SPOT_MS (transform only) and restarts on every slide change.
+  function armSpot() {
+    clearTimeout(spotTimer);
+    spotTimer = 0;
+    const multi = spot.length >= 2;
+    toggleClass(slideBar, 'hidden', !multi);
+    toggleClass(heroPill, 'hidden', !spot.length);
+    if (multi) setText(slideCount, (spotIndex + 1) + ' / ' + spot.length);
+    if (!multi || !canSpin()) {
+      if (barOn) {
+        barOn = false;
+        slideFill.style.transition = 'none';
+        slideFill.style.transform = 'scaleX(0)';
+      }
+      toggleClass(slideTrack, 'paused', true);
+      return;
+    }
+    toggleClass(slideTrack, 'paused', false);
+    barOn = true;
+    slideFill.style.transition = 'none';
+    slideFill.style.transform = 'scaleX(0)';
+    void slideFill.offsetWidth;
+    slideFill.style.transition = 'transform ' + SPOT_MS + 'ms linear';
+    slideFill.style.transform = 'scaleX(1)';
+    spotTimer = setTimeout(spinSpot, SPOT_MS);
+  }
+
+  function gotoSlide(delta) {
+    spotIndex = wrapIndex(spotIndex, delta, spot.length);
+    showHero(spot[spotIndex]);
+    prefetch(imageFor(spot[wrapIndex(spotIndex, 1, spot.length)], 'Backdrop', 1344));
+    armSpot();
   }
 
   function spinSpot() {
-    if (!shown || document.hidden || spot.length < 2) return;
-    if (moved && zone !== 'nav') return;
-    spotIndex = (spotIndex + 1) % spot.length;
-    showHero(spot[spotIndex]);
-    prefetch(imageFor(spot[(spotIndex + 1) % spot.length], 'Backdrop', 1344));
+    spotTimer = 0;
+    if (!canSpin()) { armSpot(); return; }
+    gotoSlide(1);
   }
+
+  function onVisibility() { armSpot(); }
 
   // ---------- rows ----------
 
@@ -205,12 +261,18 @@ export function createBrowsePage(opts) {
     setTransform(track, 'translateY(' + (-(cur ? cur.y : 0)) + 'px)');
   }
 
+  function syncZone() {
+    topbar.setActive(zone === 'nav');
+    toggleClass(heroPill, 'focus', zone === 'hero');
+    renderRows();
+  }
+
   function setZone(z) {
     zone = z;
-    topbar.setActive(z === 'nav');
     if (z === 'nav') topbar.home();
-    renderRows();
-    if (z === 'nav' && spot.length) showHero(spot[spotIndex]);
+    syncZone();
+    if (z !== 'rows' && spot.length) showHero(spot[spotIndex]);
+    armSpot();
   }
 
   function makeUi(s, rec, cached) {
@@ -333,6 +395,7 @@ export function createBrowsePage(opts) {
       sub: 'You can still find it in the library.',
       confirm: 'Remove',
       cancel: 'Cancel',
+      defaultConfirm: true,
       onConfirm: function () {
         d.run(it).then(function () {
           hubs.invalidate(s.id);
@@ -449,11 +512,13 @@ export function createBrowsePage(opts) {
   function onKey(action) {
     if (confirm.isOpen()) return confirm.onKey(action);
     const vis = visible();
+    touched = true;
+    const hasHero = spot.length > 0;
     if (zone === 'nav') {
       switch (action) {
         case 'left': topbar.move(-1); return true;
         case 'right': topbar.move(1); return true;
-        case 'down': setZone('rows'); return true;
+        case 'down': setZone(nextZone('nav', 'down', hasHero, false)); return true;
         case 'enter': topbar.select(); return true;
         case 'back':
           if (tab !== 'home') { nav.go('openHub', 'home'); return true; }
@@ -461,9 +526,25 @@ export function createBrowsePage(opts) {
         default: return false;
       }
     }
+    if (zone === 'hero') {
+      const item = spot[spotIndex];
+      switch (action) {
+        case 'left': gotoSlide(-1); return true;
+        case 'right': gotoSlide(1); return true;
+        case 'enter': case 'longenter': if (item) nav.go('openItem', item); return true;
+        case 'play': case 'playpause': if (item) nav.go('playItem', item); return true;
+        case 'up': case 'back': setZone('nav'); return true;
+        case 'down':
+          moved = true;
+          setZone('rows');
+          if (focusSlot && !focusSlot.recipe.chips && focusSlot.ui.item()) onFocusItem(focusSlot.ui.item());
+          return true;
+        default: return false;
+      }
+    }
     const s = vis[rowIndex];
     if (!s) {
-      if (action === 'up' || action === 'back') { setZone('nav'); return true; }
+      if (action === 'up' || action === 'back') { setZone(nextZone('rows', action, hasHero, true)); return true; }
       if (action === 'enter') {
         viewsFailed = false;
         slots.forEach(function (x) { if (x.state === 'error') x.state = 'idle'; });
@@ -476,7 +557,7 @@ export function createBrowsePage(opts) {
       case 'left': s.ui.move(-1); return true;
       case 'right': s.ui.move(1); return true;
       case 'up':
-        if (rowIndex === 0) { setZone('nav'); return true; }
+        if (rowIndex === 0) { setZone(nextZone('rows', 'up', hasHero, true)); return true; }
         rowIndex--;
         focusSlot = vis[rowIndex];
         renderRows();
@@ -502,7 +583,7 @@ export function createBrowsePage(opts) {
         return true;
       case 'back':
         if (rowIndex > 0 || s.ui.index() > 0) { jumpTop(); return true; }
-        setZone('nav');
+        setZone(nextZone('rows', 'back', hasHero, true));
         return true;
       default: return false;
     }
@@ -516,8 +597,8 @@ export function createBrowsePage(opts) {
     onShow: function () {
       shown = true;
       ambience.restore();
-      clearInterval(spotTimer);
-      spotTimer = setInterval(spinSpot, SPOT_MS);
+      document.addEventListener('visibilitychange', onVisibility);
+      armSpot();
       // A detail page may have dropped something from Continue watching / Next up meanwhile.
       let dirty = false;
       slots.forEach(function (s) {
@@ -534,13 +615,14 @@ export function createBrowsePage(opts) {
     onHide: function () {
       shown = false;
       if (confirm.isOpen()) confirm.close();
-      clearInterval(spotTimer);
-      spotTimer = 0;
+      document.removeEventListener('visibilitychange', onVisibility);
+      armSpot();
     },
     onKey: onKey,
     destroy: function () {
       alive = false;
-      clearInterval(spotTimer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      clearTimeout(spotTimer);
       clearTimeout(heroTimer);
       clearTimeout(saveTimer);
       slots.forEach(function (s) { if (s.ui) s.ui.destroy(); });

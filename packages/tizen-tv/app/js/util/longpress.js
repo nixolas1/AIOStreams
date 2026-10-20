@@ -2,7 +2,7 @@
 // reports a normal press, otherwise `fire` already got the long action and up() is swallowed.
 // Auto-repeat keydowns while held are ignored (e.repeat, or a second down within STALE_MS
 // with no keyup between, for remotes that do not set the flag).
-export const LONG_MS = 600;
+export const LONG_MS = 450;
 const STALE_MS = 2000;
 
 /**

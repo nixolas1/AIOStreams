@@ -1,8 +1,9 @@
 // Adapted from samsucks (https://github.com/rfaile313/samsucks), GPL-3.0 (search layout and zones)
-// Search: input | chips (recent searches / live suggestions) | result rows (Movies, Series, Anime).
+// Search: input | chips (recent searches) | result rows (Movies, Series, Anime).
+// A search runs only when the field is committed (OK / Done) or a recent chip is picked: the server's
+// TMDB search is slow (2 to 30 s) and per-keystroke requests made it time out.
 import { h, setText, setTransform, show, toggleClass } from '../util/dom.js';
 import * as store from '../util/store.js';
-import { debounce } from '../util/time.js';
 import * as jellyfin from '../api/jellyfin.js';
 import * as nav from '../nav.js';
 import { createField } from '../ui/keyboard.js';
@@ -11,6 +12,7 @@ import * as hubs from '../api/hubs.js';
 
 const MAX_RECENT = 8;
 const MIN_CHARS = 2;
+const SEARCH_AGAIN = 'Press OK on the search box to try again.';
 const PROVIDER_ANIME = /kitsu|anilist|mal|anidb/i;
 
 /** Anime heuristics when api/hubs.js has no per-item helper. */
@@ -58,13 +60,21 @@ export function addRecent(list, term) {
   return out;
 }
 
+/** Copy for a failed search: timeouts and unreachable servers get their own wording. */
+export function errorCopy(e) {
+  const status = e && e.status;
+  const msg = e && e.message;
+  if (status === 0 && msg === 'Timed out') return { title: 'Search timed out', sub: SEARCH_AGAIN };
+  if (status === 0) return { title: 'Could not reach the server', sub: SEARCH_AGAIN };
+  return { title: 'Search failed', sub: 'Could not reach the server. Try again.' };
+}
+
 export function SearchScreen() {
   let zone = 'input'; // 'input' | 'chips' | 'rows'
   let chipIndex = 0;
   let rowIndex = 0;
   let rows = [];       // [{row, wrap, title}]
   let chips = [];      // [{label, run}]
-  let chipMode = 'recent';
   let seq = 0;
   let pitch = 500;
   let term = '';
@@ -74,11 +84,10 @@ export function SearchScreen() {
 
   const field = createField({
     placeholder: 'Search movies, series and anime',
-    onInput: function (v) { term = v; typed(v); },
+    onInput: function (v) { term = v; },
     onDone: function (v) {
-      typed.cancel();
       const t = String(v).trim();
-      if (t.length >= MIN_CHARS) { pushRecent(t); run(t).then(function () { if (rows.length && alive) { setZone('rows'); } }); }
+      if (t.length >= MIN_CHARS) search(t);
     },
   });
   field.el.className += ' search-field';
@@ -102,15 +111,13 @@ export function SearchScreen() {
     store.set('recentSearches', recents);
   }
 
-  function setChips(mode, list) {
-    chipMode = mode;
+  function setChips(list) {
     chips = list;
     chipRow.textContent = '';
     for (let i = 0; i < list.length; i++) {
       list[i].el = h('div', 'chip search-chip', list[i].label);
       chipRow.appendChild(list[i].el);
     }
-    setText(chipLabel, mode === 'recent' ? 'Recent searches' : 'Suggestions');
     show(chipLabel, list.length > 0);
     if (chipIndex >= list.length) chipIndex = Math.max(0, list.length - 1);
     paint();
@@ -118,14 +125,20 @@ export function SearchScreen() {
 
   function recentChips() {
     const list = recents.map(function (t) { return { label: t, run: function () { useTerm(t); } }; });
-    if (list.length) list.push({ label: 'Clear', run: function () { recents = []; store.set('recentSearches', []); chipIndex = 0; setChips('recent', recentChips()); if (!chips.length) setZone('input'); } });
+    if (list.length) list.push({ label: 'Clear', run: function () { recents = []; store.set('recentSearches', []); chipIndex = 0; setChips(recentChips()); if (!chips.length) setZone('input'); } });
     return list;
   }
 
   function useTerm(t) {
     field.setValue(t);
+    search(t);
+  }
+
+  // Commit: remember the term, run exactly one search, move into the results when there are some.
+  function search(t) {
     term = t;
     pushRecent(t);
+    setChips(recentChips());
     run(t).then(function () { if (rows.length && alive) setZone('rows'); });
   }
 
@@ -151,16 +164,19 @@ export function SearchScreen() {
     if (t.length < MIN_CHARS) {
       clearRows();
       showEmpty('Search movies, series and anime', 'Press OK on the search box to type with the on-screen keyboard.');
-      setChips('recent', recentChips());
+      setChips(recentChips());
       return;
     }
+    clearRows();
+    showEmpty('Searching for "' + t + '"…', 'The server is looking. This can take a few seconds.');
     let res;
     try {
       res = await jellyfin.items({ searchTerm: t, includeItemTypes: 'Movie,Series', limit: 40 });
     } catch (e) {
       if (my !== seq) return;
       clearRows();
-      showEmpty('Search failed', 'Could not reach the server. Try again.');
+      const copy = errorCopy(e);
+      showEmpty(copy.title, copy.sub);
       return;
     }
     if (my !== seq || !alive) return;
@@ -188,27 +204,6 @@ export function SearchScreen() {
     paint();
   }
 
-  const typed = debounce(function (v) {
-    const t = String(v).trim();
-    run(t);
-    if (t.length >= MIN_CHARS) {
-      const my = seq;
-      jellyfin.searchHints(t).then(function (r) {
-        if (my !== seq || !alive || zone === 'chips') return;
-        const hints = (r && r.SearchHints ? r.SearchHints : []).map(function (x) { return x.Name; });
-        const seen = {};
-        const list = [];
-        for (let i = 0; i < hints.length && list.length < 6; i++) {
-          const k = String(hints[i]).toLowerCase();
-          if (seen[k]) continue;
-          seen[k] = 1;
-          list.push({ label: hints[i], run: (function (n) { return function () { useTerm(n); }; })(hints[i]) });
-        }
-        if (list.length) setChips('hints', list);
-      }).catch(function () {});
-    }
-  }, 350);
-
   function setZone(z) {
     zone = z;
     paint();
@@ -222,14 +217,14 @@ export function SearchScreen() {
     setTransform(rowsTrack, 'translateY(' + (-rowIndex * pitch) + 'px)');
   }
 
-  setChips('recent', recentChips());
+  setChips(recentChips());
   paint();
 
   return {
     name: 'search',
     el: el,
     onShow: function () { paint(); },
-    destroy: function () { alive = false; typed.cancel(); seq++; clearRows(); },
+    destroy: function () { alive = false; seq++; clearRows(); },
     onKey: function (action) {
       if (field.handleKey(action)) return true;
       if (zone === 'input') {

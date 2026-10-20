@@ -29,7 +29,7 @@ function fitWindow() {
 }
 
 function wireNav() {
-  nav.register('openItem', function (item) { return router.push(DetailScreen({ item: item })); });
+  nav.register('openItem', function (item, opts) { return router.push(DetailScreen({ item: item, from: opts && opts.from })); });
   nav.register('playItem', function (item, opts) { return router.push(PlayerScreen({ item: item, opts: opts || {} })); });
   nav.register('openLibrary', function (view, opts) { return router.push(LibraryScreen({ view: view, opts: opts || {} })); });
   // Home/Movies/Series/Anime are tabs: switching replaces the tab screen instead of stacking.

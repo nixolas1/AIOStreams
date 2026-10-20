@@ -6,6 +6,7 @@ import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import { createRow } from '../ui/row.js';
 import { createChips } from '../ui/chips.js';
 import { createTopbar } from '../ui/topbar.js';
+import { createConfirm } from '../ui/confirm.js';
 import { useAmbience, HeroArt } from '../ui/backdrop.js';
 import { imageFor } from '../ui/tile.js';
 import { prefetch } from '../ui/images.js';
@@ -59,6 +60,8 @@ export function createBrowsePage(opts) {
   clip.style.top = ROWS_TOP + 'px';
   const track = add(clip, 'div', 'rows-track');
   const empty = add(el, 'div', 'browse-empty');
+  const confirm = createConfirm();
+  el.appendChild(confirm.el);
 
   let slots = [];          // {id, recipe, ui, state, count}
   let zone = 'rows';
@@ -225,7 +228,7 @@ export function createBrowsePage(opts) {
       title: rec.title,
       kindBadge: rec.badge,
       onFocus: onFocusItem,
-      onSelect: function (item) { nav.go('openItem', item); },
+      onSelect: function (item) { nav.go('openItem', item, s.id === 'nextup' ? { from: 'nextup' } : undefined); },
       onNeedMore: function () { loadMore(s); },
     });
   }
@@ -274,7 +277,7 @@ export function createBrowsePage(opts) {
         s.ui.setItems([]);
       }
       s.state = 'done';
-      loadedAt = Date.now();
+      s.at = loadedAt = Date.now();
       layout();
       if (s.recipe.spotlight) rebuildSpot();
       scheduleSave();
@@ -304,6 +307,48 @@ export function createBrowsePage(opts) {
 
   function ensureAll() {
     for (let i = 0; i < slots.length; i++) loadSlot(slots[i]);
+  }
+
+  // ---------- dismiss (long-press OK on Continue watching / Next up) ----------
+
+  const DISMISS = {
+    resume: {
+      title: function () { return 'Remove from Continue watching?'; },
+      done: 'Removed from Continue watching',
+      run: function (it) { return jf.clearResume(it.Id); },
+      match: function (it) { return function (x) { return x.Id === it.Id; }; },
+    },
+    nextup: {
+      title: function (it) { return 'Remove ' + (it.SeriesName || it.Name || 'this show') + ' from Next up?'; },
+      done: 'Removed from Next up',
+      run: function (it) { return jf.dropSeries(it.SeriesId || it.Id); },
+      match: function (it) { const sid = it.SeriesId || it.Id; return function (x) { return (x.SeriesId || x.Id) === sid; }; },
+    },
+  };
+
+  function dismissItem(s, it) {
+    const d = DISMISS[s.id];
+    confirm.open({
+      title: d.title(it),
+      sub: 'You can still find it in the library.',
+      confirm: 'Remove',
+      cancel: 'Cancel',
+      onConfirm: function () {
+        d.run(it).then(function () {
+          hubs.invalidate(s.id);
+          if (!alive) return;
+          if (s.ui) s.ui.removeWhere(d.match(it));
+          layout();
+          const cur = focusSlot && focusSlot.ui && focusSlot.ui.item && !focusSlot.recipe.chips ? focusSlot.ui.item() : null;
+          if (cur) onFocusItem(cur);
+          rebuildSpot();
+          scheduleSave();
+          toast(d.done, 2500);
+        }, function () {
+          if (alive) toast("Couldn't remove it. Try again.", 3500);
+        });
+      },
+    });
   }
 
   // ---------- cache ----------
@@ -402,6 +447,7 @@ export function createBrowsePage(opts) {
   }
 
   function onKey(action) {
+    if (confirm.isOpen()) return confirm.onKey(action);
     const vis = visible();
     if (zone === 'nav') {
       switch (action) {
@@ -447,6 +493,10 @@ export function createBrowsePage(opts) {
         if (rowIndex >= vis.length - 2) ensureAll();
         return true;
       case 'enter': s.ui.select(); return true;
+      case 'longenter':
+        if (DISMISS[s.id] && !s.recipe.chips && s.ui.item()) dismissItem(s, s.ui.item());
+        else s.ui.select();
+        return true;
       case 'play': case 'playpause':
         if (!s.recipe.chips && s.ui.item()) nav.go('playItem', s.ui.item());
         return true;
@@ -462,11 +512,18 @@ export function createBrowsePage(opts) {
     el: el,
     name: opts.name,
     tab: true,
+    longEnter: true,
     onShow: function () {
       shown = true;
       ambience.restore();
       clearInterval(spotTimer);
       spotTimer = setInterval(spinSpot, SPOT_MS);
+      // A detail page may have dropped something from Continue watching / Next up meanwhile.
+      let dirty = false;
+      slots.forEach(function (s) {
+        if (s.state === 'done' && hubs.invalidatedAt(s.id) > (s.at || 0)) { s.state = 'idle'; dirty = true; }
+      });
+      if (dirty) ensureLoaded();
       // Back from playback or detail: progress and Continue watching may have changed.
       if (loadedAt && Date.now() - loadedAt > STALE_MS) {
         slots.forEach(function (s) { if (s.state === 'done') s.state = 'idle'; });
@@ -476,6 +533,7 @@ export function createBrowsePage(opts) {
     },
     onHide: function () {
       shown = false;
+      if (confirm.isOpen()) confirm.close();
       clearInterval(spotTimer);
       spotTimer = 0;
     },

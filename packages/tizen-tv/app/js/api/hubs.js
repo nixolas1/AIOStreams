@@ -275,6 +275,7 @@ export function kindOf(item) {
 // ---------- fetch helpers ----------
 
 const memos = {};
+const stamps = {};
 function memo(key, fn) {
   const hit = memos[key];
   if (hit && Date.now() - hit.at < 5000) return hit.p;
@@ -282,6 +283,17 @@ function memo(key, fn) {
   memos[key] = { at: Date.now(), p: p };
   p.catch(function () { delete memos[key]; });
   return p;
+}
+
+/** Forget a memoized row fetch ('resume' | 'nextup' | ...) after the server changed under it. */
+export function invalidate(key) {
+  delete memos[key];
+  stamps[key] = Date.now();
+}
+
+/** When `invalidate(key)` last ran (0 = never); a page compares it with its own load time. */
+export function invalidatedAt(key) {
+  return stamps[key] || 0;
 }
 
 function itemsOf(r) {

@@ -5,7 +5,7 @@
 //
 // createRow({kind, title, onFocus(item, index), onSelect(item, index), onNeedMore(), kindBadge})
 //   -> {el, height, setItems, appendItems, move(dx) -> bool, setIndex(i), index(), item(),
-//       items(), count(), select(), setTitle(t), setActive(bool), destroy()}
+//       items(), count(), removeWhere(fn) -> removed count, select(), setTitle(t), setActive(bool), destroy()}
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import { createTile, fillTile, KINDS, CAPTION_H } from './tile.js';
 import { cancel } from './images.js';
@@ -35,6 +35,11 @@ export function slotOf(i, poolSize) {
 /** translateX of the track for a focused index. */
 export function trackX(index, step) {
   return -index * step;
+}
+
+/** Focus index after items were removed: `before` of them sat left of idx, `len` items remain. */
+export function indexAfterRemove(idx, before, len) {
+  return Math.max(0, Math.min(idx - before, len - 1));
 }
 
 export function rowHeight(kind, hasTitle) {
@@ -100,7 +105,8 @@ export function createRow(o) {
   }
 
   function wipe() {
-    for (let k = 0; k < poolSize; k++) { pool[k]._i = -1; pool[k]._t.item = undefined; }
+    // Hidden until render() re-places it: a shorter list must not leave stale tiles showing.
+    for (let k = 0; k < poolSize; k++) { pool[k]._i = -1; pool[k]._t.item = undefined; pool[k].style.visibility = 'hidden'; }
   }
 
   function focused() {
@@ -134,6 +140,21 @@ export function createRow(o) {
       render();
       focused();
       return true;
+    },
+    /** Drop every item for which match(item) is true; focus stays on the nearest survivor. */
+    removeWhere: function (match) {
+      const next = [];
+      let before = 0;
+      for (let i = 0; i < items.length; i++) {
+        if (match(items[i])) { if (i < idx) before++; } else next.push(items[i]);
+      }
+      if (next.length === items.length) return 0;
+      const gone = items.length - next.length;
+      items = next;
+      idx = indexAfterRemove(idx, before, items.length);
+      wipe();
+      render();
+      return gone;
     },
     /** Silent: moves focus without firing onFocus. */
     setIndex: function (i) {

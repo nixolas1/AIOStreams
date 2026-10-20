@@ -4,6 +4,7 @@
 // can never queue up work. While a key is held <html> gets .fast, which
 // shortens transitions and lets screens defer expensive updates.
 import { actionFor } from './platform/tizen.js';
+import { createLongPress } from './util/longpress.js';
 
 const NAV = { left: 1, right: 1, up: 1, down: 1 };
 // Actions a focused <input> still hands to the screen (everything else types).
@@ -17,6 +18,12 @@ let lastNavAt = 0;
 const root = document.documentElement;
 
 export const stats = { keyAt: 0 };
+
+// OK outside a text field acts on release (or 'longenter' after a hold), never on press.
+const okKey = createLongPress(function (action) {
+  stats.keyAt = performance.now();
+  if (handler) handler(action);
+});
 
 export function setHandler(fn) {
   handler = fn;
@@ -53,6 +60,7 @@ document.addEventListener('keydown', function (e) {
   e.preventDefault();
   stats.keyAt = performance.now();
 
+  if (action === 'enter' && !typing) { okKey.down(e.repeat); return; }
   if (NAV[action]) {
     const now = performance.now();
     const held = e.repeat || now - lastNavAt < 140;
@@ -68,10 +76,13 @@ document.addEventListener('keydown', function (e) {
   if (handler) handler(action);
 }, true);
 
-document.addEventListener('keyup', function () {
+document.addEventListener('keyup', function (e) {
+  if (actionFor(e) === 'enter' && okKey.up()) e.preventDefault();
   clearTimeout(fastTimer);
   fastTimer = setTimeout(function () { setFast(false); }, 60);
 });
+
+window.addEventListener('blur', function () { okKey.cancel(); });
 
 // Feed an action through the same path as a real key press.
 export function inject(action) {

@@ -38,11 +38,17 @@ function strip(t) {
   return o;
 }
 
+// Test hooks on the returned server: playLog, userLog (UserData/Rating calls), searchLog, knobs {searchDelayMs, searchStatus, userStatus}.
 export function createServer() {
   // Seeded so the My list / Library rows have something to show.
   const favorites = new Set([catalog.items['view-trending-movies'][1], catalog.items['view-popular-series'][2]]);
   const playLog = []; // [{path, body}] of /Sessions/Playing* calls, for tests (never holds tokens)
   const played = new Set();
+  const cleared = new Set();  // resume entries dismissed via POST /UserItems/:id/UserData {PlaybackPositionTicks: 0}
+  const dropped = new Set();  // series dropped via POST /UserItems/:id/Rating?Likes=false (hidden from Next up)
+  const userLog = [];         // [{method, path, query, body}] of those calls, for tests
+  const searchLog = [];       // [{path, term}] of /Items?SearchTerm and /Search/Hints calls, for tests
+  const knobs = { searchDelayMs: 0, searchStatus: 0, userStatus: 0 }; // tests: slow / failing search, failing dismiss
   const qc = { polls: 0 };
 
   function withState(dto) {
@@ -222,9 +228,9 @@ export function createServer() {
     }
     if (p === '/Users/Me') return send(user);
     if (p === '/UserViews') return send(list(catalog.views));
-    if (p === '/UserItems/Resume') return send(list(q.parentid ? [] : home.resume.map(withState)));
+    if (p === '/UserItems/Resume') return send(list(q.parentid ? [] : home.resume.filter((r) => !cleared.has(r.Id)).map(withState)));
     if (p === '/Shows/NextUp') {
-      let arr = home.nextUp;
+      let arr = home.nextUp.filter((e) => !dropped.has(e.SeriesId));
       if (q.seriesid) arr = arr.filter((e) => e.SeriesId === q.seriesid);
       return send(list(arr));
     }
@@ -234,9 +240,15 @@ export function createServer() {
       arr = arr.slice().sort((a, b) => Date.parse(b.PremiereDate) - Date.parse(a.PremiereDate));
       return send(arr.slice(0, parseInt(q.limit || '16', 10)));
     }
+    if ((p === '/Items' || p === '/Users/' + user.Id + '/Items') && q.searchterm) {
+      searchLog.push({ path: p, term: q.searchterm });
+      if (knobs.searchDelayMs) await new Promise((r) => setTimeout(r, knobs.searchDelayMs));
+      if (knobs.searchStatus) return send({ Message: 'Mock search failure' }, knobs.searchStatus);
+    }
     if (p === '/Items' || p === '/Users/' + user.Id + '/Items') return send(handleItems(q));
     if (p === '/Genres') return send(list(catalog.genres.map((g) => ({ Name: g, Id: 'genre-' + g.toLowerCase(), Type: 'Genre' }))));
     if (p === '/Search/Hints') {
+      searchLog.push({ path: p, term: q.searchterm || '' });
       const term = (q.searchterm || '').toLowerCase();
       const hits = allTitles().filter((t) => t.Name.toLowerCase().includes(term)).slice(0, 20);
       return send({ SearchHints: hits.map((t) => ({ ItemId: t.Id, Id: t.Id, Name: t.Name, Type: t.Type, ProductionYear: t.ProductionYear })), TotalRecordCount: hits.length });
@@ -280,7 +292,13 @@ export function createServer() {
     }
     if ((m = /^\/Items\/([^/]+)$/.exec(p)) || (m = /^\/Users\/[^/]+\/Items\/([^/]+)$/.exec(p))) {
       const it = find(m[1]);
-      return it ? send(withState(it)) : send({ Message: 'Not found' }, 404);
+      if (!it) return send({ Message: 'Not found' }, 404);
+      const o = withState(it);
+      // Resume progress follows the Continue watching list (cleared once dismissed).
+      const r = home.resume.find((x) => x.Id === m[1]);
+      if (r && !cleared.has(m[1])) o.UserData = Object.assign({}, o.UserData, { PlaybackPositionTicks: r.UserData.PlaybackPositionTicks, PlayedPercentage: r.UserData.PlayedPercentage });
+      else if (r) o.UserData = Object.assign({}, o.UserData, { PlaybackPositionTicks: 0 });
+      return send(o);
     }
     if (/^\/Videos\/[^/]+\/stream$/.test(p)) {
       if (!fs.existsSync(LOCAL_VIDEO)) { res.writeHead(302, { Location: SRC_URL }); return res.end(); }
@@ -297,6 +315,20 @@ export function createServer() {
       return fs.createReadStream(LOCAL_VIDEO).pipe(res);
     }
     if (p.startsWith('/Sessions/Playing')) { playLog.push({ path: p, body: await body(req) }); return noContent(); }
+    if ((m = /^\/UserItems\/([^/]+)\/UserData$/.exec(p)) && method === 'POST') {
+      const b = await body(req);
+      userLog.push({ method, path: p, query: Object.assign({}, q), body: b });
+      if (knobs.userStatus) return send({ Message: 'Mock failure' }, knobs.userStatus);
+      if (b.PlaybackPositionTicks === 0) cleared.add(m[1]);
+      return send({ PlaybackPositionTicks: b.PlaybackPositionTicks || 0 });
+    }
+    if ((m = /^\/UserItems\/([^/]+)\/Rating$/.exec(p))) {
+      userLog.push({ method, path: p, query: Object.assign({}, q) });
+      if (knobs.userStatus) return send({ Message: 'Mock failure' }, knobs.userStatus);
+      if (method === 'POST' && q.likes === 'false') dropped.add(m[1]);
+      else if (method === 'DELETE') dropped.delete(m[1]);
+      return send({ Likes: method === 'POST' ? q.likes === 'true' : null });
+    }
     if ((m = /^\/UserPlayedItems\/([^/]+)$/.exec(p))) {
       if (method === 'POST') played.add(m[1]); else played.delete(m[1]);
       return send({ Played: method === 'POST' });
@@ -331,6 +363,9 @@ export function createServer() {
     } else serveStatic(req, res, url);
   });
   server.playLog = playLog;
+  server.userLog = userLog;
+  server.searchLog = searchLog;
+  server.knobs = knobs;
   return server;
 }
 

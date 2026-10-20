@@ -109,9 +109,15 @@ try {
   await page.waitForSelector('[data-screen="search"]:not(.hidden)');
   await page.keyboard.press('Enter');
   await page.keyboard.type('the');
-  await page.waitForSelector('[data-screen="search"] .row-title', { timeout: 5000 }).catch(async (e) => { console.log(errors, await page.evaluate(() => [window.__errors, document.querySelector('.search-rows-track').innerHTML, document.querySelector('.search-empty').style.display, document.querySelector('.search-empty').textContent])); throw e; });
-  await page.keyboard.press('Enter'); // done
+  // Typing alone never searches: no request, no hints, no result rows.
+  await settle(900);
+  assert.deepEqual(server.searchLog, [], 'no search while typing');
+  assert.equal((await page.$$('[data-screen="search"] .row-title')).length, 0, 'no rows while typing');
+  await page.keyboard.press('Enter'); // done: exactly one /Items search
+  await page.waitForSelector('[data-screen="search"] .row-title', { timeout: 5000 });
   await settle(700);
+  assert.equal(server.searchLog.length, 1, 'one request per search: ' + JSON.stringify(server.searchLog));
+  assert.equal(server.searchLog[0].path, '/Items');
   const titles = await page.$$eval('[data-screen="search"] .row-title', (els) => els.map((e) => e.textContent));
   assert.ok(titles.includes('Movies') && titles.includes('Series'), 'rows: ' + titles.join(','));
   await page.screenshot({ path: path.join(shots, 'search.png') });

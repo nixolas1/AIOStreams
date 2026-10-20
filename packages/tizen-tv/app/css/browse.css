@@ -87,3 +87,15 @@
   transition: opacity 250ms ease; will-change: opacity;
 }
 .toast.on { opacity: 1; }
+
+/* ---------- confirm dialog ---------- */
+.confirm { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; z-index: 50; background: rgba(8, 10, 14, 0.78); }
+.confirm.hidden { display: none; }
+.confirm-box {
+  position: absolute; left: 560px; top: 360px; width: 800px; padding: 56px 64px 48px;
+  border-radius: 28px; background: var(--raised); text-align: center;
+}
+.confirm-title { font: 700 44px/1.2 var(--display); letter-spacing: 0.005em; }
+.confirm-sub { margin-top: 14px; font: 500 26px/1.3 var(--body); color: var(--dim); }
+.confirm-btns { display: flex; justify-content: center; margin-top: 44px; }
+.confirm-btns .btn { margin: 0 14px; min-width: 220px; }

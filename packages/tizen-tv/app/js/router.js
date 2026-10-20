@@ -11,15 +11,23 @@ let root = null;
 let globalKey = null;
 let rootBack = null;
 
+// 'longenter' (OK held) only reaches screens that set `longEnter: true`; for every other
+// screen, or when that one does not consume it, it is a plain 'enter'.
+function dispatch(action) {
+  const top = stack[stack.length - 1];
+  if (action === 'longenter') {
+    if (top && top.longEnter && top.onKey && top.onKey(action) === true) return;
+    action = 'enter';
+  }
+  if (top && top.onKey && top.onKey(action) === true) return;
+  if (globalKey && globalKey(action) === true) return;
+  if (action === 'back') back();
+}
+
 export function init(container, onGlobalKey) {
   root = container;
   globalKey = onGlobalKey || null;
-  setHandler(function (action) {
-    const top = stack[stack.length - 1];
-    if (top && top.onKey && top.onKey(action) === true) return;
-    if (globalKey && globalKey(action) === true) return;
-    if (action === 'back') back();
-  });
+  setHandler(dispatch);
 }
 
 // Called when Back is pressed on the root screen. Return true if it consumed

@@ -20,11 +20,16 @@ Everything here exists and is tested unless marked (stub). Chrome 76 rules apply
 ## Key actions (`platform/tizen.js` KEYMAP -> `input.js` -> `screen.onKey`)
 
 `left right up down enter back playpause play pause stop ff rw pageup pagedown
-red green yellow blue info imedone imecancel`. left/right/up/down are coalesced
+red green yellow blue info imedone imecancel longenter`. left/right/up/down are coalesced
 to one per animation frame; holding sets `html.fast` (`input.isFast()`).
 A focused `<input>` only forwards `back up down enter imedone imecancel`.
 Desktop: arrows, Enter, Esc/Backspace=back, Space=playpause, PageUp/PageDown.
 `input.inject(action)` feeds an action programmatically.
+OK outside a text field acts on release: `enter` on keyup, or `longenter` once it has been held ~600 ms (the
+following keyup is swallowed; auto-repeat keydowns are ignored; `util/longpress.js`). In a focused `<input>`, OK still
+dispatches `enter` immediately on keydown. `longenter` only reaches screens that set `longEnter: true` (the browse
+pages); `router.js` turns it into `enter` for every other screen and when the screen's `onKey('longenter')` does
+not return true, so a long press never feels broken elsewhere.
 
 ## Modules
 
@@ -37,10 +42,10 @@ Desktop: arrows, Enter, Esc/Backspace=back, Space=playpause, PageUp/PageDown.
 - `platform/tizen.js`: `KEYMAP`, `actionFor(e)`, `registerKeys()`, `exitApp()`,
   `setScreenSaver(on)`, `isUhdPanel()`, `isTizen()` (all safe on desktop).
 - `nav.js`: `register(name, fn)`, `go(name, ...args)`, `has(name)`. Names (registered in `app.js`):
-  `openItem(item)` -> Detail, `playItem(item, opts)` -> Player, `openLibrary(view, opts)` -> Library,
+  `openItem(item, {from}?)` -> Detail, `playItem(item, opts)` -> Player, `openLibrary(view, opts)` -> Library,
   `openHub(kind)` -> Hub (`'movies'|'series'|'anime'`), `openSearch()`, `openSettings()`,
   `openSources(item)`, `openConnect()` (resets the stack to Connect).
-  Screens receive `{item}`, `{item, opts}`, `{view, opts}`, `{kind}`, `{}`, `{}`, `{item}`, `{}`.
+  Screens receive `{item, from}`, `{item, opts}`, `{view, opts}`, `{kind}`, `{}`, `{}`, `{item}`, `{}`.
 - `session.js`: `normalizeServerUrl(s)`, `getBase()`, `setBase(s)` (normalizes; changing server drops
   sign-in; returns '' if unusable), `deviceId()`, `getToken()`, `userId()`, `userName()`,
   `signIn({token,userId,userName})`, `signOut()` (keeps server), `isSignedIn()`.
@@ -53,6 +58,7 @@ Desktop: arrows, Enter, Esc/Backspace=back, Space=playpause, PageUp/PageDown.
   `endsAt(remainingMs[, now])` "21:42", `episodeLabel(item)` "S1 · E2", `metaLine(item)`
   "2008  ·  PG-13  ·  1h 46m  ·  ★ 5.8" (series: "N seasons"), `progressFraction(item)` 0..1 from UserData.
 - `util/time.js`: `sleep(ms)`, `debounce(fn, ms)` (+`.cancel()`).
+- `util/longpress.js`: `createLongPress(fire, {ms, now})` -> `{down(repeat), up(), cancel(), pressed()}`; `LONG_MS = 600`.
 
 ## API
 
@@ -71,7 +77,9 @@ Desktop: arrows, Enter, Esc/Backspace=back, Space=playpause, PageUp/PageDown.
   `genres(parentId)`, `item(id)`, `seasons(seriesId)`, `episodes(seriesId, seasonId)`, `similar(id, limit)`,
   `searchHints(term)` -> `{SearchHints}`, `playbackInfo(id, {startTimeTicks, sourceId, refresh, kept})`
   -> `{MediaSources, PlaySessionId}` (each source's `Id` is `aiostreams.id` when present),
-  `reportStart/Progress/Stopped(payload)`, `markPlayed(id, bool)`, `setFavorite(id, bool)`, `favorites({limit})`.
+  `reportStart/Progress/Stopped(payload)`, `markPlayed(id, bool)`, `setFavorite(id, bool)`, `favorites({limit})`,
+  `clearResume(id)` (POST UserData `{PlaybackPositionTicks: 0}`: leaves Continue watching), `dropSeries(seriesId)` /
+  `undropSeries(seriesId)` (POST / DELETE `/UserItems/{id}/Rating`, `Likes=false`: leaves / rejoins Next up).
 - Real server facts: `CollectionType` is `movies | tvshows | boxsets` (never "anime"; anime is a tvshows view
   recognised by name). `Resume`/`NextUp`/`Upcoming` return empty when `ParentId` is given. `Genres` takes the
   genre name (first one is used). `Recursive=true` is the default in `items()`.
@@ -133,6 +141,14 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
   token guarded, samples colors with `crossOrigin='anonymous'`, falls back to a plain load + warm palette when CORS fails),
   `sampleColors(img)`, `FALLBACK`. Colors are `{tl,tr,bl,br}` of `[r,g,b]`.
 - `ui/toast.js`: `toast(text[, ms])`.
+- `ui/confirm.js`: `createConfirm()` -> `{el, open({title, sub, confirm, cancel, onConfirm, onCancel}), close(), isOpen(), onKey(action)}`.
+  Append `el` to the screen; while open the screen forwards every key to `onKey`. Focus starts on Cancel.
+- `ui/row.js` also has `removeWhere(fn) -> n` (focus stays on the nearest survivor) and the helper `indexAfterRemove`.
+- Dismiss: long-press OK on a tile of the `resume` / `nextup` rows (`screens/hub.js`) asks "Remove ...?", then calls
+  `clearResume` / `dropSeries`, removes the tile in place, calls `hubs.invalidate(id)` and toasts. Detail
+  (`DetailScreen({item, from})`, `nav.go('openItem', item, {from:'nextup'})`) shows "Remove from Continue watching" when the
+  target has progress and "Remove from Next up" only when opened from the Next up row. `hubs.invalidate(key)` /
+  `hubs.invalidatedAt(key)`: browse pages reload a row on show when it was invalidated after they loaded it.
 - `ui/grid.js` / `ui/chips.js` / `ui/topbar.js`: see the notes added when they land (below).
 - Browse items are Jellyfin DTOs; items restored from the first-paint cache are **slim** (see `hubs.slim`), so a detail
   screen must re-fetch `jellyfin.item(id)` for full data. Items listed from a classified view carry `_kind` ('movie'|'series'|'anime').
@@ -151,7 +167,8 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
 - `screens/connect.js`: exports `parseServerInput`, `webAddress(base)`, `hostOf(base)`, `validateServer(base, fetch?, timeoutMs?)`
   (GET `{base}/System/Info/Public`, 6 s), `drawQr(canvas, text, size)`. On Quick Connect success it calls
   `session.signIn` then `router.reset(HomeScreen({}))`. The QR encodes only the server's web origin; the secret never leaves the closure.
-- `screens/search.js`: exports `groupResults(items, isAnimeFn?)`, `looksLikeAnime`, `addRecent`. Uses `ui/row.js` `createRow`
+- `screens/search.js`: exports `groupResults(items, isAnimeFn?)`, `looksLikeAnime`, `addRecent`, `errorCopy(e)`. Typing never
+  searches; one `/Items` request runs when the field is committed (OK/Done) or a recent chip is picked (no `/Search/Hints`). Uses `ui/row.js` `createRow`
   and `hubs.kindOf(item)` (namespace imports, so a missing export degrades instead of breaking boot).
 - `screens/settings.js`: store keys written: `hubOverrides` ({[viewId]:{kind?,hidden?}}, kind movie|series|anime),
   `pref4k` (bool, default false), `autoplayNext` (bool, default true), `subLang` ('off' or ISO 639-2: eng nor swe dan ger fre spa jpn,

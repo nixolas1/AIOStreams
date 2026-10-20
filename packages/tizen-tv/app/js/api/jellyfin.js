@@ -194,6 +194,20 @@ export function setFavorite(id, fav) {
   return fav ? client.post(path, undefined, { userId: uid() }) : client.del(path, { userId: uid() });
 }
 
+/** Remove from Continue watching: the server records a stop at position 0, so Resume drops the item. */
+export function clearResume(id) {
+  return client.post('/UserItems/' + id + '/UserData', { PlaybackPositionTicks: 0 }, { userId: uid() });
+}
+
+/** Remove from Next up: dropped series are excluded from /Shows/NextUp. */
+export function dropSeries(seriesId) {
+  return client.post('/UserItems/' + seriesId + '/Rating', undefined, { userId: uid(), Likes: false });
+}
+
+export function undropSeries(seriesId) {
+  return client.del('/UserItems/' + seriesId + '/Rating', { userId: uid() });
+}
+
 /** The watchlist. */
 export function favorites(o) {
   o = o || {};

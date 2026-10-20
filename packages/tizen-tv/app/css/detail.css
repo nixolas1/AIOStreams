@@ -60,7 +60,7 @@ html.fast .detail-body { transition-duration: 140ms; }
   font: 400 28px/41px var(--body); color: rgba(255, 247, 230, 0.88);
   overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4;
 }
-.detail-buttons { position: absolute; left: 96px; top: 700px; height: 72px; display: flex; }
+.detail-buttons { position: absolute; left: 96px; top: 700px; height: 72px; display: flex; will-change: transform; transition: transform 240ms var(--ease); }
 .detail-btn { margin-right: 18px; flex-shrink: 0; }
 .detail-btn svg { width: 30px; height: 30px; margin-right: 14px; }
 .detail-seasons { position: absolute; left: 96px; width: 1728px; height: 56px; overflow: hidden; }

@@ -113,11 +113,40 @@ try {
   assert.equal(await page.evaluate(() => document.querySelector('.detail:not(.hidden) .detail-btn.focus').textContent), 'Play');
   await page.screenshot({ path: path.join(shots, 'detail-movie.png') });
 
+  // Hosted embed bridge: remote controls and Back stay inside the app.
+  await page.route('**/static/tv-trailer.html*', route => route.fulfill({
+    contentType: 'text/html', body: fs.readFileSync(path.join(pkgRoot, 'hosted/tv-trailer.html'), 'utf8'),
+  }));
+  await page.route('https://www.youtube.com/iframe_api', route => route.fulfill({
+    contentType: 'text/javascript', body: `window.YT = {Player: function(id, opts) {
+      var state = 1;
+      this.getPlayerState = function(){return state;};
+      this.playVideo = function(){state=1; opts.events.onStateChange({data:1});};
+      this.pauseVideo = function(){state=2; opts.events.onStateChange({data:2});};
+      this.getCurrentTime = function(){return 30;};
+      this.seekTo = function(t){document.body.dataset.seek=t;};
+      var self=this; setTimeout(function(){opts.events.onReady({target:self});},0);
+    }}; onYouTubeIframeAPIReady();`,
+  }));
+  await key('ArrowRight', 2);
+  await key('Enter');
+  await page.waitForSelector('.trailer iframe');
+  await page.waitForTimeout(300);
+  await key('Enter');
+  assert.ok((await text('.trailer')).includes('Trailer'));
+  await key('ArrowRight');
+  const bridge = page.frames().find(f => f.url().includes('/static/tv-trailer.html'));
+  assert.equal(await bridge.evaluate(() => document.body.dataset.seek), '40');
+  await key('Escape');
+  await page.waitForSelector('.detail:not(.hidden)');
+  assert.equal(await text('.detail:not(.hidden) .detail-btn.focus'), 'Trailer');
+  await key('ArrowLeft', 2);
+
   // Watchlist toggles through the mock server.
   await key('ArrowRight', 3);
   assert.equal(await text('.detail:not(.hidden) .detail-btn.focus'), 'Watchlist');
   await key('Enter');
-  await page.waitForFunction(() => /✓ Watchlist/.test(document.querySelector('.detail:not(.hidden) .detail-btn.focus').textContent));
+  await page.waitForFunction(() => /In watchlist/.test(document.querySelector('.detail:not(.hidden) .detail-btn.focus').textContent));
   await key('Enter');
   await page.waitForFunction(() => document.querySelector('.detail:not(.hidden) .detail-btn.focus').textContent === 'Watchlist');
   await key('ArrowLeft', 2);

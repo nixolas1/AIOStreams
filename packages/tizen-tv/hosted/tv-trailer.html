@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="strict-origin-when-cross-origin"><style>html,body,#player{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style></head><body><div id="player"></div><script>
+var player;
+function report(state, code) { parent.postMessage({type:'tv-trailer',state:state,code:code}, '*'); }
+function onYouTubeIframeAPIReady() {
+  var id = location.hash.slice(1);
+  if (!/^[A-Za-z0-9_-]{6,20}$/.test(id)) { report('error', 'invalid video'); return; }
+  player = new YT.Player('player', {
+    videoId:id, width:'100%', height:'100%',
+    playerVars:{autoplay:1,playsinline:1,origin:location.origin},
+    events:{
+      onReady:function(e){e.target.playVideo();},
+      onStateChange:function(e){report(e.data === 1 ? 'playing' : 'paused');},
+      onError:function(e){report('error',e.data);},
+      onAutoplayBlocked:function(){report('paused');}
+    }
+  });
+}
+window.addEventListener('message',function(e){
+  if(e.source !== parent || !e.data || e.data.type !== 'tv-trailer-control' || !player || !player.getPlayerState) return;
+  var a=e.data.action;
+  if(a === 'enter' || a === 'playpause') { if(player.getPlayerState() === 1) player.pauseVideo(); else player.playVideo(); }
+  if(a === 'play') player.playVideo();
+  if(a === 'pause') player.pauseVideo();
+  if(a === 'left' || a === 'right') player.seekTo(Math.max(0,player.getCurrentTime()+(a === 'left' ? -10 : 10)),true);
+});
+</script><script src="https://www.youtube.com/iframe_api" onerror="report('error','network')"></script></body></html>

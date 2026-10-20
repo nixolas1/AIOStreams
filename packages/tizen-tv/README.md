@@ -49,3 +49,15 @@ JS: no `?.`, `??`, `||=`/`&&=`/`??=`, `#private` fields, static blocks, top-leve
 numeric separators (also `findLast`, `toSorted`, `structuredClone`, `Promise.any`). CSS: no flex/grid `gap`,
 `aspect-ratio`, `inset`, `:focus-visible`, `content-visibility`, `max()/min()/clamp()`, `backdrop-filter`, `:is/:where/:has`;
 animate only `transform`/`opacity`. `check-legacy.mjs` enforces all of this. Module contracts: `CONTRACTS.md`.
+
+### In-app YouTube trailers
+
+Serve `hosted/tv-trailer.html` at `/static/tv-trailer.html` on the Jellyfin
+server origin. The workspace Compose file mounts it into the AIOStreams server
+static directory. It contains no credentials and receives only the YouTube video
+ID in its URL fragment. An HTTP page is required so YouTube receives a web
+referrer; a direct embed in a packaged Tizen file can fail with error 153.
+The TV app retains remote focus: OK toggles playback, Left/Right seek ten
+seconds, and Back closes and destroys the player. Restricted videos show an
+error. Browser tests mock YouTube to verify controls and cleanup; actual YouTube
+playback and codec compatibility must be checked on the TV.

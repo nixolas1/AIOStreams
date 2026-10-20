@@ -57,14 +57,10 @@ export function createBrowsePage(opts) {
   const heroSummary = add(info, 'p', 'hero-summary');
   const heroChips = add(info, 'div', 'hero-chips');
 
-  // Slideshow controls: count + progress bar (>= 2 slides) and the action pill (focus affordance of the 'hero' zone).
-  const ctl = add(el, 'div', 'hero-ctl');
-  const slideBar = add(ctl, 'div', 'hero-slides hidden');
-  const slideCount = add(slideBar, 'span', 'hero-count');
-  const slideTrack = add(slideBar, 'div', 'hero-bar');
-  const slideFill = add(slideTrack, 'i');
-  const heroPill = add(ctl, 'div', 'hero-pill hidden');
-  heroPill.innerHTML = '<b>OK</b> Details<u></u><b>\u25B6</b> Play';
+  const slideBar = add(el, 'div', 'hero-slides hidden');
+  const dots = [];
+  for (let i = 0; i < 5; i++) dots.push(add(slideBar, 'i', 'hero-dot'));
+
 
   const clip = add(el, 'div', 'browse-rows');
   clip.style.top = ROWS_TOP + 'px';
@@ -80,7 +76,6 @@ export function createBrowsePage(opts) {
   let moved = false;       // any focus move since the page opened
   let touched = false;     // any key since the page opened
   let spotKey = '';
-  let barOn = false;
   let spot = [];
   let spotIndex = 0;
   let spotTimer = 0;
@@ -174,31 +169,17 @@ export function createBrowsePage(opts) {
     return shown && !document.hidden && spot.length >= 2 && (zone !== 'rows' || !moved);
   }
 
-  // Count + progress bar. The bar fills over SPOT_MS (transform only) and restarts on every slide change.
+  // Dots track the current slide; rotation pauses while browsing rows.
   function armSpot() {
     clearTimeout(spotTimer);
     spotTimer = 0;
-    const multi = spot.length >= 2;
-    toggleClass(slideBar, 'hidden', !multi);
-    toggleClass(heroPill, 'hidden', !spot.length);
-    if (multi) setText(slideCount, (spotIndex + 1) + ' / ' + spot.length);
-    if (!multi || !canSpin()) {
-      if (barOn) {
-        barOn = false;
-        slideFill.style.transition = 'none';
-        slideFill.style.transform = 'scaleX(0)';
-      }
-      toggleClass(slideTrack, 'paused', true);
-      return;
+    toggleClass(slideBar, 'hidden', spot.length < 2);
+    toggleClass(slideBar, 'paused', !canSpin());
+    for (let i = 0; i < dots.length; i++) {
+      toggleClass(dots[i], 'hidden', i >= spot.length);
+      toggleClass(dots[i], 'selected', i === spotIndex);
     }
-    toggleClass(slideTrack, 'paused', false);
-    barOn = true;
-    slideFill.style.transition = 'none';
-    slideFill.style.transform = 'scaleX(0)';
-    void slideFill.offsetWidth;
-    slideFill.style.transition = 'transform ' + SPOT_MS + 'ms linear';
-    slideFill.style.transform = 'scaleX(1)';
-    spotTimer = setTimeout(spinSpot, SPOT_MS);
+    if (canSpin()) spotTimer = setTimeout(spinSpot, SPOT_MS);
   }
 
   function gotoSlide(delta) {
@@ -263,7 +244,7 @@ export function createBrowsePage(opts) {
 
   function syncZone() {
     topbar.setActive(zone === 'nav');
-    toggleClass(heroPill, 'focus', zone === 'hero');
+    toggleClass(el, 'hero-focused', zone === 'hero');
     renderRows();
   }
 

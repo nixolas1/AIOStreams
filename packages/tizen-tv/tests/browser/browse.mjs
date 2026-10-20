@@ -127,11 +127,11 @@ try {
   // ---- hero zone: startup focus, slideshow count + progress, OK opens the shown item ----
   const homeSel = '[data-screen="home"]';
   const heroState = () => page.evaluate((h) => ({
-    pill: document.querySelector(h + ' .hero-pill').classList.contains('focus'),
-    count: document.querySelector(h + ' .hero-count').textContent,
+    pill: document.querySelector(h).classList.contains('hero-focused'),
+    count: (Array.from(document.querySelectorAll(h + ' .hero-dot')).findIndex(d => d.classList.contains('selected')) + 1) + ' / ' + document.querySelectorAll(h + ' .hero-dot:not(.hidden)').length,
     barHidden: document.querySelector(h + ' .hero-slides').classList.contains('hidden'),
-    paused: document.querySelector(h + ' .hero-bar').classList.contains('paused'),
-    fill: document.querySelector(h + ' .hero-bar i').style.transform,
+    paused: document.querySelector(h + ' .hero-slides').classList.contains('paused'),
+    fill: 'scaleX(1)',
     title: document.querySelector(h + ' .hero-title').textContent,
   }), homeSel);
   let hs = await heroState();

@@ -15,7 +15,9 @@ import { toast } from '../ui/toast.js';
 import { debounce } from '../util/time.js';
 import { metaLine, clock, episodeLabel } from '../util/format.js';
 import { createSourcesPanel } from './sources.js';
-import { youtubeId, openYouTube } from '../platform/youtube.js';
+import { youtubeId } from '../platform/youtube.js';
+import * as router from '../router.js';
+import { TrailerScreen } from './trailer.js';
 
 const TICKS_PER_MS = 10000;
 const SECTION_TOP = 380; // where the active lower section sits once the body has slid up
@@ -27,6 +29,7 @@ const ICONS = {
   sources: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 5h18v3H3zm0 5.5h18v3H3zM3 16h18v3H3z"/></svg>',
   trailer: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm5.5 3.5v7l6-3.5z"/></svg>',
   list: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 3h14v18l-7-4-7 4z"/></svg>',
+  flag: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 3h2v18H4zM7 3h14v12H7zm0 0v4h4V3zm8 0v4h4V3zM11 7v4h4V7zm-4 4v4h4v-4zm8 0v4h4v-4z" fill-rule="evenodd"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z"/></svg>',
   remove: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4z"/></svg>',
   series: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 6h16v10H4zm4 12h8v2H8z"/></svg>',
@@ -168,8 +171,7 @@ export function DetailScreen(args) {
     let id = '';
     for (let i = 0; i < trailers.length && !id; i++) id = youtubeId(trailers[i] && trailers[i].Url);
     if (!id) { toast('No YouTube trailer for this title', 3000); return; }
-    toast('Opening trailer in YouTube…', 2500);
-    openYouTube(id).catch(function () { toast("Couldn't open the trailer", 3500); });
+    router.push(TrailerScreen({ id: id, title: item.Name }));
   }
 
   async function toggleFavorite() {
@@ -248,8 +250,8 @@ export function DetailScreen(args) {
       addButton(list, 'sources', ICONS.sources, 'Sources', function () { sources.open(t); renderFocus(); });
     }
     if (item.RemoteTrailers && item.RemoteTrailers.length) addButton(list, 'trailer', ICONS.trailer, 'Trailer', openTrailer);
-    addButton(list, 'watchlist', ICONS.list, ud.IsFavorite ? '✓ Watchlist' : 'Watchlist', toggleFavorite);
-    addButton(list, 'watched', ICONS.check, ud.Played ? '✓ Watched' : 'Mark watched', toggleWatched);
+    addButton(list, 'watchlist', ud.IsFavorite ? ICONS.check : ICONS.list, ud.IsFavorite ? 'In watchlist' : 'Watchlist', toggleFavorite);
+    addButton(list, 'watched', ud.Played ? ICONS.check : ICONS.flag, ud.Played ? 'Watched' : 'Mark watched', toggleWatched);
     if (t && startOf(t) > 0) addButton(list, 'unresume', ICONS.remove, 'Remove from Continue watching', function () { removeFromResume(t); });
     if (inNextUp && (item.Type === 'Series' || (item.Type === 'Episode' && item.SeriesId))) {
       addButton(list, 'unnext', ICONS.remove, 'Remove from Next up', removeFromNextUp);

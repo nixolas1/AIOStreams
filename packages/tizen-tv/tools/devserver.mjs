@@ -38,7 +38,7 @@ function strip(t) {
   return o;
 }
 
-// Test hooks on the returned server: playLog, userLog (UserData/Rating calls), searchLog, knobs {searchDelayMs, searchStatus, userStatus}.
+// Test hooks on the returned server: playLog, streamLog ([{session, source}] per stream request), infoLog ([{fresh, sourceId}] per PlaybackInfo request), POST /mock/jellyfin/__mock/expire (stream requests with a PlaySessionId issued before it answer 410; ?always=1 keeps every stream failing, ?always=0 resets), userLog (UserData/Rating calls), searchLog, knobs {searchDelayMs, searchStatus, userStatus}.
 export function createServer() {
   // Seeded so the My list / Library rows have something to show.
   const favorites = new Set([catalog.items['view-trending-movies'][1], catalog.items['view-popular-series'][2]]);
@@ -50,6 +50,9 @@ export function createServer() {
   const searchLog = [];       // [{path, term}] of /Items?SearchTerm and /Search/Hints calls, for tests
   const knobs = { searchDelayMs: 0, searchStatus: 0, userStatus: 0 }; // tests: slow / failing search, failing dismiss
   const qc = { polls: 0 };
+  const infoLog = [];         // [{fresh, sourceId}] of PlaybackInfo requests, for tests
+  const streamLog = [];       // [{session, source}] of /Videos/:id/stream requests, for tests
+  const sess = { issued: 0, expiredUpTo: 0, always: false }; // PlaySessionId numbering and the expire hook
 
   function withState(dto) {
     const o = strip(dto);
@@ -277,7 +280,10 @@ export function createServer() {
     }
     if ((m = /^\/Items\/([^/]+)\/PlaybackInfo$/.exec(p)) && method === 'POST') {
       // Non-http Path: the client falls back to the stream route, which serves the local clip.
+      const b = (await body(req)) || {};
+      infoLog.push({ fresh: !!b.Fresh, sourceId: b.MediaSourceId || '' });
       const info = JSON.parse(JSON.stringify(playbackInfo));
+      info.PlaySessionId = 'ps-' + (++sess.issued);
       for (const src of info.MediaSources) {
         src.Path = 'mock://' + src.Id;
         for (const st of src.MediaStreams || []) {
@@ -300,7 +306,16 @@ export function createServer() {
       else if (r) o.UserData = Object.assign({}, o.UserData, { PlaybackPositionTicks: 0 });
       return send(o);
     }
+    if (p === '/__mock/expire' && method === 'POST') {
+      if (q.always != null) sess.always = q.always === '1';
+      else sess.expiredUpTo = sess.issued;
+      return noContent();
+    }
     if (/^\/Videos\/[^/]+\/stream$/.test(p)) {
+      const ps = q.playsessionid || '';
+      streamLog.push({ session: ps, source: q.mediasourceid });
+      const n = /^ps-(\d+)$/.exec(ps);
+      if (sess.always || (n && Number(n[1]) <= sess.expiredUpTo)) { res.writeHead(410, { 'Access-Control-Allow-Origin': '*' }); return res.end(); }
       if (!fs.existsSync(LOCAL_VIDEO)) { res.writeHead(302, { Location: SRC_URL }); return res.end(); }
       const size = fs.statSync(LOCAL_VIDEO).size;
       const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
@@ -363,6 +378,9 @@ export function createServer() {
     } else serveStatic(req, res, url);
   });
   server.playLog = playLog;
+  server.streamLog = streamLog;
+  server.infoLog = infoLog;
+  Object.defineProperty(server, 'infoCount', { get: () => sess.issued }); // PlaybackInfo responses served
   server.userLog = userLog;
   server.searchLog = searchLog;
   server.knobs = knobs;

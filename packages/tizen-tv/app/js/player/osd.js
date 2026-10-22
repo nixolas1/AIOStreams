@@ -17,7 +17,8 @@ export function createOsd() {
   top.appendChild(title);
   top.appendChild(sub);
   top.appendChild(src);
-  const next = h('button', 'osd-next hidden', 'Next episode  ▷|');
+  const next = h('button', { class: 'osd-next hidden', 'aria-label': 'Next episode' },
+    h('span', { class: 'osd-next-icon', 'aria-hidden': 'true' }));
   next.type = 'button';
   top.appendChild(next);
   const bottom = h('div', 'osd-bottom');

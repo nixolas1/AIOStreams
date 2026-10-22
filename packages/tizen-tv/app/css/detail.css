@@ -246,7 +246,11 @@ video.av-object { background: #000; object-fit: contain; }
 .player-error-msg { margin-top: 20px; font: 500 28px/1.4 var(--body); color: rgba(255, 247, 230, 0.86); }
 .player-error-hint { margin-top: 28px; font: 500 22px/1 var(--body); color: var(--dim); }
 
-.osd-next { position: absolute; right: 96px; top: 58px; padding: 18px 26px; border: 2px solid rgba(255,255,255,0.5); border-radius: 12px; background: rgba(0,0,0,0.5); color: var(--text); font: 600 28px/36px var(--body); pointer-events: none; }
+/* Geometric skip-next icon avoids font-dependent media glyphs on Tizen. */
+.osd-next { position: absolute; right: 96px; top: 58px; width: 80px; height: 80px; padding: 0; border: 2px solid transparent; border-radius: 12px; background: transparent; color: var(--text); outline: none; pointer-events: none; }
 .osd.on .osd-next { pointer-events: auto; }
-.osd-next.focus { background: var(--cream); color: var(--bg); border-color: var(--cream); }
-.osd-top.has-next .osd-title, .osd-top.has-next .osd-sub, .osd-top.has-next .osd-src { width: 1300px; }
+.osd-next.focus { border-color: var(--cream); }
+.osd-next-icon { position: absolute; left: 20px; top: 20px; width: 36px; height: 36px; }
+.osd-next-icon::before { content: ''; position: absolute; left: 0; top: 2px; width: 0; height: 0; border-top: 16px solid transparent; border-bottom: 16px solid transparent; border-left: 25px solid currentColor; }
+.osd-next-icon::after { content: ''; position: absolute; right: 0; top: 2px; width: 5px; height: 32px; background: currentColor; }
+.osd-top.has-next .osd-title, .osd-top.has-next .osd-sub, .osd-top.has-next .osd-src { width: 1500px; }

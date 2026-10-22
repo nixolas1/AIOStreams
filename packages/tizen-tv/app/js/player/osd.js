@@ -40,6 +40,8 @@ export function createOsd() {
   bottom.appendChild(bar);
   bottom.appendChild(times);
   bottom.appendChild(hint);
+  const intro = h('button', { class: 'osd-intro hidden', type: 'button' }, 'Skip intro');
+  bottom.appendChild(intro);
   el.appendChild(top);
   el.appendChild(bottom);
 
@@ -68,6 +70,11 @@ export function createOsd() {
     spinnerEl: spinner,
     subsEl: subs,
     nextEl: next,
+    introEl: intro,
+    setIntro: function (visible, focused) {
+      toggleClass(intro, 'hidden', !visible);
+      toggleClass(intro, 'focus', !!focused);
+    },
     setNext: function (available) {
       toggleClass(next, 'hidden', !available);
       toggleClass(top, 'has-next', available);

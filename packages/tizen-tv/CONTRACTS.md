@@ -234,3 +234,13 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
 - Episode details have a second action row (`series` focus zone) for Go to series. It opens `DetailScreen`
   with `focusEpisode`, selects the latest played episode from series history (falling back to that episode),
   and focuses its season and episode row. Up returns to the primary action row.
+
+## Skip intro
+
+- After preparing each episode source, the player requests `/MediaSegments/:itemId?includeSegmentTypes=Intro`.
+  `player/segments.js` validates finite start/end ticks against the actual source duration. Missing/invalid markers
+  produce no prompt; failed lookups never block playback. Responses from old sources/screens are ignored.
+- During an intro, Up reveals and selects Skip intro, including when the OSD is hidden. OK seeks to its end,
+  preserving pause state. Right focuses Next episode; Left from Next episode returns to Skip intro while available.
+  Down/Back dismiss the intro selection. It disappears at the end of the intro or when the overlay closes.
+  Seeking back into the intro makes it available on Up again. There is no automatic skip.

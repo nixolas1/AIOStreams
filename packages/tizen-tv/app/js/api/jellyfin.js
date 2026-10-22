@@ -216,3 +216,8 @@ export function favorites(o) {
     Limit: o.limit || 100, Fields: FIELDS,
   });
 }
+
+/** Intro timestamps supplied by the server; unavailable providers may return an empty list. */
+export function introMarkers(id) {
+  return client.get('/MediaSegments/' + id, { includeSegmentTypes: 'Intro' });
+}

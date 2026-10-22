@@ -9,6 +9,7 @@ import * as client from '../api/client.js';
 import * as jf from '../api/jellyfin.js';
 import * as hubs from '../api/hubs.js';
 import { creditMinutes, watchedAtStop } from '../player/progress.js';
+import { introSegments, introAt } from '../player/segments.js';
 import * as router from '../router.js';
 import { createPlayer } from '../platform/player.js';
 import { setScreenSaver, isUhdPanel } from '../platform/tizen.js';
@@ -59,9 +60,50 @@ export function PlayerScreen(args) {
   const osd = createOsd();
   osd.setSubtitleSize(subtitleSize(store.get('player.subSize', 46)));
   let nextFocused = false;
-  osd.onChange(function (on) { if (!on) focusNext(false); });
+  let introFocused = false;
+  let intros = [];
+  let introRequested = false;
+  osd.onChange(function (on) { if (!on) { focusNext(false); hideIntro(); } });
   osd.nextEl.addEventListener('click', playNext);
-  function focusNext(on) { nextFocused = on; osd.focusNext(on); }
+  osd.introEl.addEventListener('click', skipIntro);
+  function focusNext(on) {
+    nextFocused = on;
+    osd.focusNext(on);
+    if (on) { introFocused = false; osd.setIntro(introRequested, false); }
+  }
+  function hideIntro() {
+    introRequested = false;
+    introFocused = false;
+    osd.setIntro(false, false);
+  }
+  function activeIntro() {
+    return started && !seeking && !seeker.pending() ? introAt(intros, player.time()) : null;
+  }
+  function showIntro() {
+    if (!activeIntro()) return false;
+    focusNext(false);
+    introRequested = true;
+    introFocused = true;
+    osd.setIntro(true, true);
+    osd.show(true);
+    return true;
+  }
+  function refreshIntro() {
+    if (introRequested && !activeIntro()) { hideIntro(); osd.show(paused || nextFocused || seeker.pending()); }
+  }
+  function loadIntros(mine, sourceDuration) {
+    if (item.Type !== 'Episode') return;
+    jf.introMarkers(item.Id).then(function (r) {
+      if (!alive || mine !== gen) return;
+      intros = introSegments(r, sourceDuration);
+    }, function () { /* Missing markers never interrupt playback. */ });
+  }
+  async function skipIntro() {
+    const segment = activeIntro();
+    if (!segment) { hideIntro(); return; }
+    hideIntro();
+    await seekTo(segment.end);
+  }
   const errorBox = h('div', 'player-error hidden');
   const upnext = h('div', 'upnext hidden');
   const panel = createTracksPanel({
@@ -119,6 +161,7 @@ export function PlayerScreen(args) {
     onTime: function (ms) {
       if (!started || seeking || !alive) return;
       position = ms;
+      refreshIntro();
       if (!seeker.pending()) osd.render(position, duration, false);
     },
     onBuffering: function (b) { if (alive) osd.setBuffering(b || (!started && !failedState && !ended)); },
@@ -243,6 +286,9 @@ export function PlayerScreen(args) {
 
   async function openSource(src, atMs) {
     const mine = ++gen;
+    intros = [];
+    hideIntro();
+    focusNext(false);
     current = src;
     started = false;
     failedState = false;
@@ -264,6 +310,7 @@ export function PlayerScreen(args) {
     }
     if (!alive || mine !== gen) return;
     duration = (r && r.durationMs) || durationFromItem();
+    loadIntros(mine, r && r.durationMs);
     setupTracks(mine);
     position = atMs || 0;
     if (atMs > 0) {
@@ -484,7 +531,9 @@ export function PlayerScreen(args) {
   }
 
   function seekBy(dir) {
-    if (!started || !duration) return;
+    if (!started || !duration || seeking) return;
+    hideIntro();
+    focusNext(false);
     const target = seeker.press(dir, Date.now(), position, duration);
     osd.setPreview(target);
     osd.render(target, duration, true);
@@ -498,13 +547,21 @@ export function PlayerScreen(args) {
     const t = seeker.commit();
     if (t == null) return;
     osd.setPreview(null);
-    position = t;
+    await seekTo(t);
+  }
+
+  async function seekTo(t) {
+    if (!started || seeking) return;
+    clearTimeout(embTimer);
+    osd.setSubtitle('');
     const mine = gen;
     seeking = true;
     osd.setBuffering(true);
-    try { await player.seek(t); } catch (e) { /* closed or failed: the error listener reports */ }
-    seeking = false;
+    try { await player.seek(t); } catch (e) { if (alive && mine === gen) toast("Couldn't seek in this stream", 2500); }
     if (!alive || mine !== gen) return;
+    seeking = false;
+    position = player.time();
+    refreshIntro();
     osd.setBuffering(false);
     osd.render(position, duration, true);
     osd.show();
@@ -628,7 +685,15 @@ export function PlayerScreen(args) {
         else if (action === 'back' || action === 'stop') exit();
         return true;
       }
+      if (introFocused) {
+        if (action === 'enter') { skipIntro(); return true; }
+        if (action === 'right' && nextItem) { focusNext(true); osd.show(true); return true; }
+        if (action === 'down' || action === 'back' || action === 'left' || action === 'right') {
+          hideIntro(); osd.show(paused); return true;
+        }
+      }
       if (nextFocused) {
+        if (action === 'left' && showIntro()) return true;
         if (action === 'enter') { playNext(); return true; }
         if (action === 'down' || action === 'back' || action === 'left' || action === 'right') {
           focusNext(false); osd.show(paused || seeker.pending()); return true;
@@ -649,10 +714,11 @@ export function PlayerScreen(args) {
         case 'left': case 'rw': seekBy(-1); return true;
         case 'right': case 'ff': seekBy(1); return true;
         case 'up':
+          if (showIntro()) return true;
           if (osd.isOn() && nextItem && !seeker.pending()) { focusNext(true); osd.show(true); }
           else osd.show(paused || seeker.pending());
           return true;
-        case 'info': osd.show(nextFocused || paused || seeker.pending()); return true;
+        case 'info': osd.show(introFocused || nextFocused || paused || seeker.pending()); return true;
         case 'down': openPanel(); return true;
         case 'stop': exit(); return true;
         case 'back':

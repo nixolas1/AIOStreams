@@ -256,3 +256,7 @@ video.av-object { background: #000; object-fit: contain; }
 .osd-top.has-next .osd-title, .osd-top.has-next .osd-sub, .osd-top.has-next .osd-src { width: 1500px; }
 
 .detail-series-button { position: absolute; left: 96px; top: 796px; height: 72px; display: flex; }
+
+.osd-intro { position: absolute; right: 96px; top: 32px; padding: 16px 26px; border: 2px solid transparent; border-radius: 12px; background: rgba(0,0,0,0.65); color: var(--text); font: 600 28px/36px var(--body); pointer-events: none; }
+.osd.on .osd-intro { pointer-events: auto; }
+.osd-intro.focus { border-color: var(--cream); background: var(--cream); color: var(--bg); }

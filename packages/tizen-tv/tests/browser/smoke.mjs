@@ -141,6 +141,13 @@ try {
   assert.equal(api.resume, 3);
   assert.equal(api.me, 'Demo');
 
+  let markerRequests = 0;
+  await p2.route('**/MediaSegments/*', async route => {
+    markerRequests++;
+    assert.equal(new URL(route.request().url()).searchParams.get('includeSegmentTypes'), 'Intro');
+    if (markerRequests > 1) { await route.fulfill({ status: 503, body: '{}' }); return; }
+    await route.fulfill({ json: { Items: [{ Type: 'Intro', StartTicks: 20000000, EndTicks: 60000000 }] } });
+  });
   // Player controls against synthetic episodes, including remote focus and persisted size.
   await p2.evaluate(async () => {
     const jf = await import('/js/api/jellyfin.js');
@@ -151,6 +158,36 @@ try {
   });
   await p2.waitForSelector('.osd-next:not(.hidden)');
   await p2.waitForFunction(() => !document.querySelector('.spinner').classList.contains('on'));
+  await p2.evaluate(async () => {
+    const { top } = await import('/js/router.js');
+    top().onKey('pause');
+    const video = document.querySelector('video');
+    await new Promise(resolve => { video.addEventListener('seeked', resolve, { once: true }); video.currentTime = 3; });
+    top().onKey('back'); // hide overlay
+  });
+  assert.equal(await p2.locator('.osd-intro:not(.hidden)').count(), 0, 'no automatic intro prompt');
+  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('up'); });
+  await p2.waitForSelector('.osd.on .osd-intro.focus');
+  assert.equal(await p2.locator('.osd-next.focus').count(), 0, 'intro takes priority');
+  if (process.env.TV_INTRO_SCREENSHOT) {
+    await p2.waitForFunction(() => getComputedStyle(document.querySelector('.osd')).opacity === '1');
+    await p2.screenshot({ path: process.env.TV_INTRO_SCREENSHOT });
+  }
+  await p2.evaluate(async () => {
+    const video = document.querySelector('video');
+    await new Promise(resolve => { video.addEventListener('seeked', resolve, { once: true }); video.currentTime = 7; });
+  });
+  await p2.waitForSelector('.osd-intro.hidden', { state: 'attached' });
+  await p2.evaluate(async () => {
+    const video = document.querySelector('video');
+    await new Promise(resolve => { video.addEventListener('seeked', resolve, { once: true }); video.currentTime = 3; });
+    const { top } = await import('/js/router.js'); top().onKey('up');
+  });
+  assert.equal(await p2.locator('.osd-intro.focus:not(.hidden)').count(), 1, 'seeking back makes intro available again');
+  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('enter'); });
+  await p2.waitForFunction(() => document.querySelector('video').currentTime >= 5.9 && !document.querySelector('.spinner.on'));
+  assert.equal(await p2.locator('video').evaluate(video => video.paused), true, 'skipping preserves pause');
+  assert.equal(await p2.locator('.osd-intro:not(.hidden)').count(), 0, 'intro hides after skip');
   await p2.evaluate(async () => {
     const router = await import('/js/router.js');
     const player = router.top();

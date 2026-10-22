@@ -7,6 +7,8 @@ import { h } from '../util/dom.js';
 import * as store from '../util/store.js';
 import * as client from '../api/client.js';
 import * as jf from '../api/jellyfin.js';
+import * as hubs from '../api/hubs.js';
+import { creditMinutes, watchedAtStop } from '../player/progress.js';
 import * as router from '../router.js';
 import { createPlayer } from '../platform/player.js';
 import { setScreenSaver, isUhdPanel } from '../platform/tizen.js';
@@ -158,25 +160,37 @@ export function PlayerScreen(args) {
     return o;
   }
 
-  function swallow(p) { if (p && p.catch) p.catch(function () {}); }
+  let reportQueue = Promise.resolve();
+  function enqueueReport(fn, payload) {
+    reportQueue = reportQueue.then(function () { return fn(payload); }).catch(function () {});
+    return reportQueue;
+  }
 
   function reportStart() {
     reportedStart = true;
-    swallow(jf.reportStart(body()));
+    enqueueReport(jf.reportStart, body());
     clearInterval(progressTimer);
     progressTimer = setInterval(function () { reportProgress('TimeUpdate'); }, PROGRESS_MS);
   }
 
   function reportProgress(event) {
     if (!reportedStart || stopped) return;
-    swallow(jf.reportProgress(body({ EventName: event })));
+    enqueueReport(jf.reportProgress, body({ EventName: event }));
   }
 
   function reportStop() {
     clearInterval(progressTimer);
     if (!reportedStart || stopped) return;
     stopped = true;
-    swallow(jf.reportStopped(body()));
+    // Read actual playback time, never an uncommitted seek preview.
+    if (started) position = player.time();
+    const played = !failedState && watchedAtStop(position, duration, creditMinutes(store.get('player.creditMinutes', 3)));
+    hubs.rememberPlayback(item, played);
+    let saved = enqueueReport(jf.reportStopped, body());
+    if (played) saved = saved.then(function () { return jf.markPlayed(item.Id, true); }).catch(function () {
+      toast("Couldn't save watched status", 3500);
+    });
+    hubs.afterPlayback(saved);
   }
 
   // ---------- opening ----------

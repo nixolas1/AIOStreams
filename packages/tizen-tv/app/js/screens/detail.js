@@ -18,6 +18,7 @@ import { createSourcesPanel } from './sources.js';
 import { youtubeId } from '../platform/youtube.js';
 import * as router from '../router.js';
 import { TrailerScreen } from './trailer.js';
+import { lastPlayed } from '../player/progress.js';
 
 const TICKS_PER_MS = 10000;
 const SECTION_TOP = 380; // where the active lower section sits once the body has slid up
@@ -39,7 +40,9 @@ function ticksMs(t) { return t ? Math.round(t / TICKS_PER_MS) : 0; }
 
 function fetchDetail(id) {
   // Same as jellyfin.item() plus People and Taglines for the "Starring" line.
-  return client.get('/Items/' + id, { userId: session.userId(), Fields: jf.FIELDS_DETAIL + ',People,Taglines' });
+  return hubs.playbackSaved().then(function () {
+    return client.get('/Items/' + id, { userId: session.userId(), Fields: jf.FIELDS_DETAIL + ',People,Taglines' });
+  });
 }
 
 function isSpecial(season) { return season.IndexNumber === 0; }
@@ -75,6 +78,7 @@ export function DetailScreen(args) {
   const tags = h('div', 'detail-tags');
   const summary = h('p', 'detail-summary');
   const buttonsEl = h('div', 'detail-buttons');
+  const seriesButtonEl = h('div', 'detail-series-button');
   const seasonsEl = h('div', 'detail-seasons');
   const seasonsTrack = h('div', 'detail-seasons-track');
   seasonsEl.appendChild(seasonsTrack);
@@ -84,6 +88,7 @@ export function DetailScreen(args) {
   body.appendChild(tags);
   body.appendChild(summary);
   body.appendChild(buttonsEl);
+  body.appendChild(seriesButtonEl);
   body.appendChild(seasonsEl);
 
   el.appendChild(art);
@@ -103,6 +108,9 @@ export function DetailScreen(args) {
   // state
   let zone = 'buttons';
   let buttons = [];
+  let seriesButton = null;
+  let preferredEpisode = args.focusEpisode || null;
+  let focusPreferredEpisode = !!preferredEpisode;
   let btnIdx = 0;
   let seasons = [];
   let seasonIdx = 0;
@@ -256,10 +264,20 @@ export function DetailScreen(args) {
     if (inNextUp && (item.Type === 'Series' || (item.Type === 'Episode' && item.SeriesId))) {
       addButton(list, 'unnext', ICONS.remove, 'Remove from Next up', removeFromNextUp);
     }
+    const seriesActions = [];
     if (item.Type === 'Episode' && item.SeriesId) {
-      addButton(list, 'series', ICONS.series, 'Go to series', function () {
-        nav.go('openItem', { Id: item.SeriesId, Type: 'Series', Name: item.SeriesName });
+      addButton(seriesActions, 'series', ICONS.series, 'Go to series', function () {
+        router.push(DetailScreen({ item: { Id: item.SeriesId, Type: 'Series', Name: item.SeriesName }, focusEpisode: item }));
       });
+    }
+    seriesButtonEl.textContent = '';
+    seriesButton = seriesActions[0] || null;
+    if (seriesButton) {
+      const b = h('div', 'btn detail-btn');
+      b.innerHTML = seriesButton.icon;
+      b.appendChild(h('span', 'btn-label', seriesButton.label));
+      seriesButton.el = b;
+      seriesButtonEl.appendChild(b);
     }
     buttonsEl.textContent = '';
     for (let i = 0; i < list.length; i++) {
@@ -292,7 +310,7 @@ export function DetailScreen(args) {
   // active section's top to SECTION_TOP).
   function layout() {
     const hasPills = seasons.length > 1;
-    let y = BTN_TOP + 72 + 52;
+    let y = BTN_TOP + 72 + 52 + (seriesButton ? 96 : 0);
     topSeasons = y;
     seasonsEl.style.top = y + 'px';
     if (hasPills) y += 56 + 28;
@@ -319,7 +337,8 @@ export function DetailScreen(args) {
 
   function focusEpisode(eps) {
     let at = -1;
-    if (nextEp) for (let i = 0; i < eps.length; i++) if (eps[i].Id === nextEp.Id) at = i;
+    if (preferredEpisode) for (let i = 0; i < eps.length; i++) if (eps[i].Id === preferredEpisode.Id || (eps[i].ParentIndexNumber === preferredEpisode.ParentIndexNumber && eps[i].IndexNumber === preferredEpisode.IndexNumber)) at = i;
+    if (at < 0 && nextEp) for (let i = 0; i < eps.length; i++) if (eps[i].Id === nextEp.Id) at = i;
     if (at < 0) for (let i = 0; i < eps.length; i++) if (!(eps[i].UserData && eps[i].UserData.Played)) { at = i; break; }
     episodesRow.setIndex(at >= 0 ? at : 0);
   }
@@ -335,6 +354,7 @@ export function DetailScreen(args) {
       episodesRow.setItems(eps);
       if (keepFocus) episodesRow.setIndex(at);
       else focusEpisode(eps);
+      if (focusPreferredEpisode && eps.length) { zone = 'episodes'; focusPreferredEpisode = false; }
       if (!firstEp && eps.length && !isSpecial(season)) { firstEp = eps[0]; renderButtons(); }
       renderFocus();
     } catch (e) {
@@ -373,6 +393,7 @@ export function DetailScreen(args) {
 
   function zones() {
     const z = ['buttons'];
+    if (seriesButton) z.push('series');
     if (seasons.length > 1) z.push('seasons');
     if (episodesRow && episodesRow.count()) z.push('episodes');
     if (similarRow && similarRow.count()) z.push('similar');
@@ -389,6 +410,7 @@ export function DetailScreen(args) {
   function renderFocus() {
     if (zone !== 'buttons' && zones().indexOf(zone) < 0) zone = 'buttons';
     const panelOpen = sources.isOpen();
+    if (seriesButton) toggleClass(seriesButton.el, 'focus', zone === 'series' && !panelOpen);
     for (let i = 0; i < buttons.length; i++) toggleClass(buttons[i].el, 'focus', zone === 'buttons' && !panelOpen && i === btnIdx);
     // A long row (Resume, Remove from ...) slides left so the focused button stays inside the 96 px margin.
     const fb = buttons[btnIdx] && buttons[btnIdx].el;
@@ -411,7 +433,7 @@ export function DetailScreen(args) {
     if (similarRow) similarRow.setActive(zone === 'similar' && !panelOpen);
     const shift = zone === 'buttons' ? 0 : Math.max(0, sectionTop(zone) - SECTION_TOP);
     setTransform(body, 'translateY(' + -shift + 'px)');
-    toggleClass(el, 'shifted', zone !== 'buttons');
+    toggleClass(el, 'shifted', zone !== 'buttons' && zone !== 'series');
   }
 
   function moveZone(dir) {
@@ -441,13 +463,17 @@ export function DetailScreen(args) {
       renderHeader();
       renderButtons();
       if (item.Type === 'Series') {
-        const res = await Promise.all([jf.seasons(item.Id), jf.nextUp({ seriesId: item.Id, limit: 1 }).catch(function () { return null; })]);
+        const res = await Promise.all([jf.seasons(item.Id), jf.nextUp({ seriesId: item.Id, limit: 1 }).catch(function () { return null; }),
+          preferredEpisode ? jf.episodes(item.Id).catch(function () { return null; }) : Promise.resolve(null)]);
         if (!alive || mine !== loadToken) return;
         seasons = ((res[0] && res[0].Items) || []).filter(function (s) { return s.Type === 'Season' || !s.Type; });
+        const history = (res[2] && res[2].Items) || [];
+        for (let i = 0; i < history.length; i++) if (lastPlayed(history[i]) > lastPlayed(preferredEpisode || {})) preferredEpisode = history[i];
         nextEp = res[1] && res[1].Items && res[1].Items[0] ? res[1].Items[0] : null;
         if (!silent || !seasons[seasonIdx]) {
           let at = -1;
           if (preferSeason) for (let i = 0; i < seasons.length; i++) if (seasons[i].Id === preferSeason) at = i;
+          if (at < 0 && preferredEpisode) for (let i = 0; i < seasons.length; i++) if (seasons[i].Id === preferredEpisode.SeasonId || (preferredEpisode.ParentIndexNumber != null && seasons[i].IndexNumber === preferredEpisode.ParentIndexNumber)) at = i;
           if (at < 0 && nextEp) for (let i = 0; i < seasons.length; i++) if (seasons[i].Id === nextEp.SeasonId || (nextEp.ParentIndexNumber != null && seasons[i].IndexNumber === nextEp.ParentIndexNumber)) at = i;
           if (at < 0) for (let i = 0; i < seasons.length; i++) if (!isSpecial(seasons[i])) { at = i; break; }
           seasonIdx = at >= 0 ? at : 0;
@@ -503,6 +529,8 @@ export function DetailScreen(args) {
         if (action === 'left') { if (btnIdx > 0) { btnIdx--; renderFocus(); } return true; }
         if (action === 'right') { if (btnIdx < buttons.length - 1) { btnIdx++; renderFocus(); } return true; }
         if (action === 'enter') { if (buttons[btnIdx]) buttons[btnIdx].run(); return true; }
+      } else if (zone === 'series') {
+        if (action === 'enter' && seriesButton) { seriesButton.run(); return true; }
       } else if (zone === 'seasons') {
         if (action === 'left' || action === 'right') {
           const n = seasonIdx + (action === 'right' ? 1 : -1);

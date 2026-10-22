@@ -9,6 +9,8 @@
 // spotlight, fetch({start, limit}) -> Promise<{items, total, title?}>}.
 import * as jf from './jellyfin.js';
 import * as store from '../util/store.js';
+import * as session from '../session.js';
+import { latestResume } from '../player/progress.js';
 
 export const ANIME_RE = /anime|kitsu|anilist|myanimelist|\bmal\b/i;
 
@@ -337,11 +339,33 @@ function fits(kind) {
   return function (it) { return !kind || kindOf(it) === kind; };
 }
 
+let watchUpdate = Promise.resolve();
+export function playbackSaved() { return watchUpdate; }
+function recentKey() { return 'player.recent.' + session.getBase() + ':' + session.userId(); }
+export function rememberPlayback(item, played) {
+  if (item.Type !== 'Episode' || !item.SeriesId) return;
+  const recent = store.get(recentKey(), {}) || {};
+  recent[item.SeriesId] = { id: item.Id, at: Date.now(), played: played };
+  const keys = Object.keys(recent).sort(function (a, b) { return recent[b].at - recent[a].at; });
+  for (let i = 100; i < keys.length; i++) delete recent[keys[i]];
+  store.set(recentKey(), recent);
+}
+/** Resume/Next up must wait for the final stop and watched writes before fetching. */
+export function afterPlayback(promise) {
+  watchUpdate = Promise.all([watchUpdate, promise.catch(function () {})]).then(function () {});
+  invalidate('resume');
+  invalidate('nextup');
+  clearBrowseCache();
+}
 function resumeItems() {
-  return memo('resume', function () { return jf.resume({ limit: 50 }).then(itemsOf); });
+  return memo('resume', function () {
+    return watchUpdate.then(function () { return jf.resume({ limit: 100 }); }).then(function (r) {
+      return latestResume(itemsOf(r), store.get(recentKey(), {}));
+    });
+  });
 }
 function nextUpItems() {
-  return memo('nextup', function () { return jf.nextUp({ limit: 40 }).then(itemsOf); });
+  return memo('nextup', function () { return watchUpdate.then(function () { return jf.nextUp({ limit: 40 }); }).then(itemsOf); });
 }
 function upcomingItems() {
   return memo('upcoming', function () { return jf.upcoming({ limit: 40 }).then(itemsOf); });

@@ -220,3 +220,17 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
   `/Videos/:id/:msid/Subtitles/:i/Stream.<fmt>`; `createServer().playLog` records `/Sessions/Playing*` calls.
 - CSS: `css/detail.css` holds the detail, sources and player styles.
 
+
+## Playback history and episode navigation
+
+- Continue watching uses `player/progress.js` `latestResume`: latest `UserData.LastPlayedDate` per `SeriesId`,
+  with server order preserved for equal/missing dates. Movies and episodes without a series ID remain distinct.
+- `hubs.rememberPlayback` keeps the last 100 locally played series per server/user so completing the newest episode
+  does not reveal an older unfinished one. Newer server playback timestamps supersede this local hint.
+- Stop reports wait for earlier progress writes; watched marking follows stop. `hubs.afterPlayback` invalidates
+  resume/nextup and the browse cache; `playbackSaved` lets detail/history loads wait for these writes.
+- `player.creditMinutes`: 0 (off), 1, 2, 3 (default), 5, 10. Stopping within this many minutes of the end marks
+  watched; at least half the runtime must have elapsed. Unknown runtimes and failed playback do not qualify.
+- Episode details have a second action row (`series` focus zone) for Go to series. It opens `DetailScreen`
+  with `focusEpisode`, selects the latest played episode from series history (falling back to that episode),
+  and focuses its season and episode row. Up returns to the primary action row.

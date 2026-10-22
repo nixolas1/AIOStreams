@@ -176,10 +176,66 @@ try {
   });
   await p2.waitForFunction(previous => document.querySelector('.osd-sub').textContent !== previous, before);
   assert.equal(await p2.locator('.subs').evaluate(el => getComputedStyle(el).fontSize), '56px');
+  await p2.waitForFunction(() => !document.querySelector('.spinner').classList.contains('on'));
+  const watchedRequest = p2.waitForResponse(r => r.url().includes('/UserPlayedItems/') && r.request().method() === 'POST');
   await p2.evaluate(async () => {
     const { top } = await import('/js/router.js');
-    top().destroy();
+    top().onKey('pause');
+    const video = document.querySelector('video');
+    await new Promise(resolve => { video.addEventListener('seeked', resolve, { once: true }); video.currentTime = video.duration - 2; });
+    top().onKey('stop');
+    const hubs = await import('/js/api/hubs.js');
+    await hubs.playbackSaved();
   });
+  assert.equal((await watchedRequest).status(), 200, 'stopping at credits marks watched');
+  const stop = server.playLog.filter(x => x.path.endsWith('/Stopped')).pop();
+  assert.ok(stop.body.PositionTicks > 60000000, 'stop reports real video time');
+
+  // Open a resumed episode; another episode in the same season was played more recently.
+  await p2.route('**/mock/jellyfin/Items/ep-*', async route => {
+    const response = await route.fetch();
+    const item = await response.json();
+    item.UserData = { PlaybackPositionTicks: 6000000000, LastPlayedDate: '2026-10-20T00:00:00Z' };
+    await route.fulfill({ response, json: item });
+  });
+  await p2.route('**/mock/jellyfin/Shows/*/Episodes?*', async route => {
+    const response = await route.fetch();
+    const data = await response.json();
+    for (const ep of data.Items) if (ep.ParentIndexNumber === 2 && ep.IndexNumber === 4) {
+      ep.UserData = { PlaybackPositionTicks: 6000000000, LastPlayedDate: '2026-10-22T00:00:00Z' };
+    }
+    await route.fulfill({ response, json: data });
+  });
+  const episode = await p2.evaluate(async () => {
+    const jf = await import('/js/api/jellyfin.js');
+    const { push } = await import('/js/router.js');
+    const { DetailScreen } = await import('/js/screens/detail.js');
+    const next = await jf.nextUp({ limit: 1 });
+    const all = await jf.episodes(next.Items[0].SeriesId);
+    const ep = all.Items.find(e => e.ParentIndexNumber === 2 && e.IndexNumber === 3);
+    push(DetailScreen({ item: ep }));
+    return ep;
+  });
+  await p2.waitForSelector('.detail-series-button .detail-btn');
+  const geometry = await p2.evaluate(() => {
+    const main = document.querySelector('.detail-buttons').getBoundingClientRect();
+    const series = document.querySelector('.detail-series-button').getBoundingClientRect();
+    return { bottom: main.bottom, top: series.top };
+  });
+  assert.ok(geometry.top > geometry.bottom, 'Go to series is below the other buttons');
+  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('down'); });
+  assert.equal(await p2.locator('.detail-series-button .focus').textContent(), 'Go to series');
+  if (process.env.TV_DETAIL_SCREENSHOT) await p2.screenshot({ path: process.env.TV_DETAIL_SCREENSHOT });
+  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('enter'); });
+  await p2.waitForSelector('.detail .row.active');
+  assert.equal(await p2.locator('.detail-seasons .current').last().textContent(), 'Season 2');
+  const focusedId = await p2.evaluate(() => {
+    const row = document.querySelector('.row.active');
+    const tiles = Array.from(row.querySelectorAll('.tile'));
+    return tiles.find(tile => Math.abs(tile.getBoundingClientRect().left - 96) < 2)._t.item.Id;
+  });
+  assert.equal(focusedId, episode.Id.replace(/e3$/, 'e4'), 'Go to series focuses the last-played episode');
+
 
   assert.deepEqual(errors, [], 'page errors: ' + errors.join(' | '));
   await ctx2.close();

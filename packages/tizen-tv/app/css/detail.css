@@ -254,3 +254,5 @@ video.av-object { background: #000; object-fit: contain; }
 .osd-next-icon::before { content: ''; position: absolute; left: 0; top: 2px; width: 0; height: 0; border-top: 16px solid transparent; border-bottom: 16px solid transparent; border-left: 25px solid currentColor; }
 .osd-next-icon::after { content: ''; position: absolute; right: 0; top: 2px; width: 5px; height: 32px; background: currentColor; }
 .osd-top.has-next .osd-title, .osd-top.has-next .osd-sub, .osd-top.has-next .osd-src { width: 1500px; }
+
+.detail-series-button { position: absolute; left: 96px; top: 796px; height: 72px; display: flex; }

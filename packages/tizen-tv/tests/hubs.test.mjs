@@ -239,3 +239,18 @@ test('recipesFor(library) with nothing but favourites still spotlights My list',
   assert.deepEqual(rows.map((r) => r.id), ['resume', 'mylist', 'watched']);
   assert.equal(rows[1].spotlight, 5);
 });
+
+
+test('Continue watching waits for playback writes and returns one episode per series', async () => {
+  const hubs = await import('../app/js/api/hubs.js');
+  let complete;
+  hubs.afterPlayback(new Promise(resolve => { complete = resolve; }));
+  const old = { Id: 'old', Type: 'Episode', SeriesId: 'series-dedupe', UserData: { LastPlayedDate: '2026-10-20T00:00:00Z' } };
+  const recent = { Id: 'recent', Type: 'Episode', SeriesId: 'series-dedupe', UserData: { LastPlayedDate: '2026-10-22T00:00:00Z' } };
+  serve(() => ({ Items: [old, recent] }));
+  const pending = homeRecipes().find(row => row.id === 'resume').fetch();
+  await Promise.resolve();
+  assert.equal(calls.length, 0, 'no stale fetch before stop completes');
+  complete();
+  assert.deepEqual((await pending).items.map(item => item.Id), ['recent']);
+});

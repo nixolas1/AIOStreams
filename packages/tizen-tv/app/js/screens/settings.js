@@ -12,6 +12,8 @@ import * as hubs from '../api/hubs.js'; // namespace import: classify/clearBrows
 
 import { SUBTITLE_SIZES, SUBTITLE_SIZE_LABELS, subtitleSize } from '../player/subtitles.js';
 
+import { CREDIT_MINUTES, creditMinutes } from '../player/progress.js';
+
 const ROW_H = 84;
 const HEAD_H = 76;
 const TOP = 210;      // list top (px)
@@ -136,6 +138,12 @@ export function SettingsScreen() {
     defs.push({
       label: 'Autoplay next episode', value: function () { return bool('autoplayNext', true) ? 'On' : 'Off'; },
       run: function () { store.set('autoplayNext', !bool('autoplayNext', true)); },
+    });
+    const setCredits = function (dx) { store.set('player.creditMinutes', cycle(CREDIT_MINUTES, creditMinutes(store.get('player.creditMinutes', 3)), dx)); };
+    defs.push({
+      label: 'Mark watched near the end',
+      value: function () { const m = creditMinutes(store.get('player.creditMinutes', 3)); return '‹  ' + (m ? 'Last ' + m + (m === 1 ? ' minute' : ' minutes') : 'Off') + '  ›'; },
+      left: function () { setCredits(-1); }, right: function () { setCredits(1); }, run: function () { setCredits(1); },
     });
     const langs = SUB_LANGS.map(function (l) { return l[0]; });
     const setLang = function (dx) { store.set('subLang', cycle(langs, store.get('subLang', 'off'), dx)); };

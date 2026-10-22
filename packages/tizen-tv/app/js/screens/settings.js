@@ -10,6 +10,8 @@ import { validateServer, hostOf } from './connect.js';
 import { setHud, hudEnabled } from '../ui/hud.js';
 import * as hubs from '../api/hubs.js'; // namespace import: classify/clearBrowseCache may not exist yet
 
+import { SUBTITLE_SIZES, SUBTITLE_SIZE_LABELS, subtitleSize } from '../player/subtitles.js';
+
 const ROW_H = 84;
 const HEAD_H = 76;
 const TOP = 210;      // list top (px)
@@ -145,6 +147,12 @@ export function SettingsScreen() {
         return '‹  ' + code + '  ›';
       },
       left: function () { setLang(-1); }, right: function () { setLang(1); }, run: function () { setLang(1); },
+    });
+    const setSize = function (dx) { store.set('player.subSize', cycle(SUBTITLE_SIZES, subtitleSize(store.get('player.subSize', 46)), dx)); };
+    defs.push({
+      label: 'Subtitle font size',
+      value: function () { return '‹  ' + SUBTITLE_SIZE_LABELS[SUBTITLE_SIZES.indexOf(subtitleSize(store.get('player.subSize', 46)))] + '  ›'; },
+      left: function () { setSize(-1); }, right: function () { setSize(1); }, run: function () { setSize(1); },
     });
     head('Diagnostics');
     defs.push({

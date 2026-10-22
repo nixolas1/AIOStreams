@@ -13,7 +13,7 @@ import { setScreenSaver, isUhdPanel } from '../platform/tizen.js';
 import { episodeLabel } from '../util/format.js';
 import { toast } from '../ui/toast.js';
 import { pickSource, nextSource, nameLines, isUhd, rankSources } from '../player/pick.js';
-import { parseCues, CueTrack } from '../player/subtitles.js';
+import { parseCues, CueTrack, stripTags, SUBTITLE_SIZES, SUBTITLE_SIZE_LABELS, subtitleSize } from '../player/subtitles.js';
 import { Seeker, COMMIT_MS } from '../player/seek.js';
 import { createOsd } from '../player/osd.js';
 import { createTracksPanel, chooseAudio, audioLabel, subtitleLabel, sameLang, langCode } from '../player/tracks.js';
@@ -55,6 +55,11 @@ export function PlayerScreen(args) {
   el.dataset.screen = 'player';
   const stage = h('div', 'player-stage');
   const osd = createOsd();
+  osd.setSubtitleSize(subtitleSize(store.get('player.subSize', 46)));
+  let nextFocused = false;
+  osd.onChange(function (on) { if (!on) focusNext(false); });
+  osd.nextEl.addEventListener('click', playNext);
+  function focusNext(on) { nextFocused = on; osd.focusNext(on); }
   const errorBox = h('div', 'player-error hidden');
   const upnext = h('div', 'upnext hidden');
   const panel = createTracksPanel({
@@ -120,13 +125,11 @@ export function PlayerScreen(args) {
     onSubtitle: function (text, ms) {
       if (!alive || subId.indexOf('emb:') !== 0) return;
       clearTimeout(embTimer);
-      osd.setSubtitle(plain(text));
+      osd.setSubtitle(stripTags(text));
       if (ms > 0) embTimer = setTimeout(function () { osd.setSubtitle(''); }, ms);
     },
   });
-  function plain(t) {
-    return String(t || '').replace(/\{\\[^}]*\}/g, '').replace(/<[^>]*>/g, '').replace(/\\N/g, '\n').trim();
-  }
+
 
   // ---------- titles ----------
 
@@ -426,15 +429,20 @@ export function PlayerScreen(args) {
     const subs = [{ label: 'Off', on: subId === 'off', ref: null }];
     for (let i = 0; i < subList.length; i++) subs.push({ label: subList[i].label, on: subList[i].id === subId, ref: subList[i] });
     osd.hide();
-    panel.open({ audio: audio, subs: subs });
-    panelData = { audio: audio, subs: subs };
+    const size = subtitleSize(store.get('player.subSize', 46));
+    const sizes = SUBTITLE_SIZES.map(function (px, i) { return { label: SUBTITLE_SIZE_LABELS[i], on: px === size, ref: px }; });
+    panelData = { audio: audio, subs: subs, sizes: sizes };
+    panel.open(panelData);
   }
   function choose(col, index) {
-    const opt = panelData && panelData[col === 0 ? 'audio' : 'subs'][index];
+    const opt = panelData && panelData[['audio', 'subs', 'sizes'][col]][index];
     if (!opt) return;
     if (col === 0) {
       player.selectAudio(opt.ref.id);
       store.set('player.audioLang', langCode(opt.ref.lang));
+    } else if (col === 2) {
+      store.set('player.subSize', opt.ref);
+      osd.setSubtitleSize(opt.ref);
     } else {
       subTouched = true;
       applySubtitle(opt.ref);
@@ -503,10 +511,12 @@ export function PlayerScreen(args) {
     nextLoaded = true;
     try {
       const r = await jf.episodes(item.SeriesId);
+      if (!alive) return;
       const eps = (r && r.Items) || [];
       for (let i = 0; i < eps.length; i++) {
         if (eps[i].Id === item.Id && i + 1 < eps.length) { nextItem = eps[i + 1]; break; }
       }
+      osd.setNext(!!nextItem);
     } catch (e) { nextItem = null; }
   }
 
@@ -547,7 +557,7 @@ export function PlayerScreen(args) {
 
   function playNext() {
     clearInterval(upnextTimer);
-    if (!nextItem) return;
+    if (!alive || !nextItem) return;
     router.replace(PlayerScreen({ item: nextItem, opts: { startMs: 0 } }));
   }
 
@@ -604,6 +614,12 @@ export function PlayerScreen(args) {
         else if (action === 'back' || action === 'stop') exit();
         return true;
       }
+      if (nextFocused) {
+        if (action === 'enter') { playNext(); return true; }
+        if (action === 'down' || action === 'back' || action === 'left' || action === 'right') {
+          focusNext(false); osd.show(paused || seeker.pending()); return true;
+        }
+      }
       switch (action) {
         case 'enter':
           if (seeker.pending()) commitSeek();
@@ -618,7 +634,11 @@ export function PlayerScreen(args) {
         case 'pause': if (!paused) togglePause(); return true;
         case 'left': case 'rw': seekBy(-1); return true;
         case 'right': case 'ff': seekBy(1); return true;
-        case 'up': case 'info': osd.show(paused || seeker.pending()); return true;
+        case 'up':
+          if (osd.isOn() && nextItem && !seeker.pending()) { focusNext(true); osd.show(true); }
+          else osd.show(paused || seeker.pending());
+          return true;
+        case 'info': osd.show(nextFocused || paused || seeker.pending()); return true;
         case 'down': openPanel(); return true;
         case 'stop': exit(); return true;
         case 'back':

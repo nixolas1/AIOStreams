@@ -87,19 +87,19 @@ const ROW_H = 64;
 const VISIBLE = 6;
 
 /**
- * Two-column picker. open({audio:[{label,on}], subs:[{label,on}]}); keys go through onKey(action).
- * handlers.onChoose(col, index) with col 0 = audio, 1 = subtitles; handlers.onClose().
+ * Three-column picker. open({audio:[{label,on}], subs:[{label,on}], sizes:[{label,on}]}); keys go through onKey(action).
+ * handlers.onChoose(col, index) with col 0 = audio, 1 = subtitles, 2 = font size; handlers.onClose().
  */
 export function createTracksPanel(handlers) {
   const el = h('div', 'tracks hidden');
   const cols = [];
-  let lists = [[], []];
+  let lists = [[], [], []];
   let col = 0;
-  let idx = [0, 0];
+  let idx = [0, 0, 0];
   let isOpen = false;
 
-  const names = ['Audio', 'Subtitles'];
-  for (let c = 0; c < 2; c++) {
+  const names = ['Audio', 'Subtitles', 'Font size'];
+  for (let c = 0; c < 3; c++) {
     const wrap = h('div', 'tracks-col');
     const head = h('div', 'tracks-head', names[c]);
     const clip = h('div', 'tracks-clip');
@@ -114,7 +114,7 @@ export function createTracksPanel(handlers) {
   el.appendChild(hint);
 
   function build() {
-    for (let c = 0; c < 2; c++) {
+    for (let c = 0; c < 3; c++) {
       const t = cols[c].track;
       t.textContent = '';
       cols[c].rows = [];
@@ -128,7 +128,7 @@ export function createTracksPanel(handlers) {
   }
 
   function paint() {
-    for (let c = 0; c < 2; c++) {
+    for (let c = 0; c < 3; c++) {
       const rows = cols[c].rows;
       for (let i = 0; i < rows.length; i++) toggleClass(rows[i], 'focus', c === col && i === idx[c]);
       toggleClass(cols[c].wrap, 'active', c === col);
@@ -141,9 +141,9 @@ export function createTracksPanel(handlers) {
     el: el,
     isOpen: function () { return isOpen; },
     open: function (data) {
-      lists = [data.audio || [], data.subs || []];
+      lists = [data.audio || [], data.subs || [], data.sizes || []];
       build();
-      idx = [Math.max(0, lists[0].findIndex(function (x) { return x.on; })), Math.max(0, lists[1].findIndex(function (x) { return x.on; }))];
+      idx = lists.map(function (list) { return Math.max(0, list.findIndex(function (x) { return x.on; })); });
       col = lists[0].length > 1 || !lists[1].length ? 0 : 1;
       el.classList.remove('hidden');
       isOpen = true;
@@ -158,8 +158,8 @@ export function createTracksPanel(handlers) {
     onKey: function (action) {
       if (!isOpen) return false;
       if (action === 'back') { this.close(); return true; }
-      if (action === 'left') col = 0;
-      else if (action === 'right') col = 1;
+      if (action === 'left') col = Math.max(0, col - 1);
+      else if (action === 'right') col = Math.min(2, col + 1);
       else if (action === 'up') {
         if (idx[col] === 0) { this.close(); return true; }
         idx[col]--;

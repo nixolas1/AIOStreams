@@ -207,12 +207,13 @@ video.av-object { background: #000; object-fit: contain; }
 .subs.lift { transform: translateY(-190px); }
 
 .tracks {
-  position: absolute; left: 360px; top: 300px; width: 1200px; height: 560px; border-radius: 24px;
+  position: absolute; left: 160px; top: 300px; width: 1600px; height: 560px; border-radius: 24px;
   background: rgba(14, 16, 22, 0.97); border: 2px solid rgba(255, 247, 230, 0.1);
 }
-.tracks-col { position: absolute; top: 36px; width: 540px; }
+.tracks-col { position: absolute; top: 36px; width: 480px; }
 .tracks-col:nth-child(1) { left: 48px; }
-.tracks-col:nth-child(2) { left: 612px; }
+.tracks-col:nth-child(2) { left: 552px; }
+.tracks-col:nth-child(3) { left: 1056px; }
 .tracks-head { height: 52px; padding-left: 22px; font: 700 36px/52px var(--display); letter-spacing: 0.02em; color: var(--dim); }
 .tracks-col.active .tracks-head { color: var(--text); }
 .tracks-clip { position: relative; height: 384px; overflow: hidden; margin-top: 12px; }
@@ -244,3 +245,8 @@ video.av-object { background: #000; object-fit: contain; }
 .player-error-title { font: 700 56px/1 var(--display); }
 .player-error-msg { margin-top: 20px; font: 500 28px/1.4 var(--body); color: rgba(255, 247, 230, 0.86); }
 .player-error-hint { margin-top: 28px; font: 500 22px/1 var(--body); color: var(--dim); }
+
+.osd-next { position: absolute; right: 96px; top: 58px; padding: 18px 26px; border: 2px solid rgba(255,255,255,0.5); border-radius: 12px; background: rgba(0,0,0,0.5); color: var(--text); font: 600 28px/36px var(--body); pointer-events: none; }
+.osd.on .osd-next { pointer-events: auto; }
+.osd-next.focus { background: var(--cream); color: var(--bg); border-color: var(--cream); }
+.osd-top.has-next .osd-title, .osd-top.has-next .osd-sub, .osd-top.has-next .osd-src { width: 1300px; }

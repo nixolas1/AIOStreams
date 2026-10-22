@@ -17,6 +17,9 @@ export function createOsd() {
   top.appendChild(title);
   top.appendChild(sub);
   top.appendChild(src);
+  const next = h('button', 'osd-next hidden', 'Next episode  ▷|');
+  next.type = 'button';
+  top.appendChild(next);
   const bottom = h('div', 'osd-bottom');
   const bar = h('div', 'osd-bar');
   const fill = h('div', 'osd-fill');
@@ -63,6 +66,13 @@ export function createOsd() {
     pauseEl: pauseBig,
     spinnerEl: spinner,
     subsEl: subs,
+    nextEl: next,
+    setNext: function (available) {
+      toggleClass(next, 'hidden', !available);
+      toggleClass(top, 'has-next', available);
+    },
+    focusNext: function (focused) { toggleClass(next, 'focus', focused); },
+    setSubtitleSize: function (size) { subs.style.fontSize = size + 'px'; },
     onChange: function (fn) { onChange = fn; },
     setTitles: function (t, s, source) {
       setText(title, t);

@@ -64,3 +64,13 @@ test('empty track', () => {
   assert.deepEqual(parseCues(''), []);
   assert.deepEqual(parseCues('garbage in\nno times'), []);
 });
+
+
+test('line separators survive markup cleanup without splitting inline formatting', () => {
+  assert.equal(stripTags('one<br>two<BR />three'), 'one\ntwo\nthree');
+  assert.equal(stripTags('<div>one</div><div>two</div>'), 'one\ntwo');
+  assert.equal(stripTags('one\\htwo\\nthree'), 'one two\nthree');
+  assert.equal(stripTags('some<i>thing</i>, &nbsp;yes'), 'something,  yes');
+  const cues = parseCues('00:00:01,000 --> 00:00:03,000\nFirst<br/>second');
+  assert.equal(cues[0].text, 'First\nsecond');
+});

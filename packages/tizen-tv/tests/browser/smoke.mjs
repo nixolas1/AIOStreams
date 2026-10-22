@@ -141,6 +141,46 @@ try {
   assert.equal(api.resume, 3);
   assert.equal(api.me, 'Demo');
 
+  // Player controls against synthetic episodes, including remote focus and persisted size.
+  await p2.evaluate(async () => {
+    const jf = await import('/js/api/jellyfin.js');
+    const router = await import('/js/router.js');
+    const { PlayerScreen } = await import('/js/screens/player.js');
+    const next = await jf.nextUp({ limit: 1 });
+    router.push(PlayerScreen({ item: next.Items[0], opts: { startMs: 0 } }));
+  });
+  await p2.waitForSelector('.osd-next:not(.hidden)');
+  await p2.waitForFunction(() => !document.querySelector('.spinner').classList.contains('on'));
+  await p2.evaluate(async () => {
+    const router = await import('/js/router.js');
+    const player = router.top();
+    player.onKey('info');
+    player.onKey('up');
+  });
+  assert.equal(await p2.locator('.osd-next.focus').count(), 1);
+  await p2.evaluate(async () => {
+    const { top } = await import('/js/router.js');
+    top().onKey('down'); // return from Next episode to transport
+    top().onKey('down'); // open tracks
+    top().onKey('right');
+    top().onKey('right'); // font size
+    top().onKey('down'); // default -> large
+    top().onKey('enter');
+  });
+  assert.equal(await p2.locator('.subs').evaluate(el => getComputedStyle(el).fontSize), '56px');
+  assert.equal(await p2.evaluate(() => JSON.parse(localStorage.getItem('atv.player.subSize'))), 56);
+  const before = await p2.locator('.osd-sub').textContent();
+  await p2.evaluate(async () => {
+    const { top } = await import('/js/router.js');
+    top().onKey('info'); top().onKey('up'); top().onKey('enter');
+  });
+  await p2.waitForFunction(previous => document.querySelector('.osd-sub').textContent !== previous, before);
+  assert.equal(await p2.locator('.subs').evaluate(el => getComputedStyle(el).fontSize), '56px');
+  await p2.evaluate(async () => {
+    const { top } = await import('/js/router.js');
+    top().destroy();
+  });
+
   assert.deepEqual(errors, [], 'page errors: ' + errors.join(' | '));
   await ctx2.close();
   console.log('smoke: ok (' + path.basename(exe) + ')');

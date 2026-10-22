@@ -200,7 +200,10 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
   Reports `/Sessions/Playing` (+ `/Progress` every 10 s and on pause/unpause/seek, `/Stopped` once on exit/end).
   Errors fall back once to the next playable source (toast), then show a retry box.
   Episodes resolve the next episode through `jellyfin.episodes(seriesId)`; at the end a 10 s up-next card
-  (OK plays now via `router.replace`, Back exits). Store keys `player.audioLang`, `player.subLang`.
+  (OK plays now via `router.replace`, Back exits). Store keys `player.audioLang`, `player.subLang`, `player.subSize` (32/38/46/56/68 px, default 46).
+  The top-right Next episode button appears when a successor exists: Up with the OSD visible focuses it,
+  OK plays it; Down/Back/Left/Right return focus to transport. The tracks panel has audio, subtitles and font-size columns.
+  Font size is also configurable in Settings and persists across episodes. Embedded and external text share `stripTags`.
 - `player/pick.js`: `rankSources(sources) -> [{source, playable, warn, reasons[]}]` (clean playable in server order,
   then playable-with-warning such as Dolby Vision without an HDR fallback, then rejected), `pickSource`, `nextSource`,
   `judge`, `describeSource`, `isUhd`, `nameLines`. DTS-only or TrueHD-only audio is rejected; sources without

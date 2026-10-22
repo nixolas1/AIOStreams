@@ -8,8 +8,11 @@ const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', lrm
 export function stripTags(s) {
   return String(s == null ? '' : s)
     .replace(/\{\\[^}]*\}/g, '')
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/(?:p|div)\s*>/gi, '\n')
     .replace(/<[^>]*>/g, '')
-    .replace(/\\N/g, '\n')
+    .replace(/\\[Nn]/g, '\n')
+    .replace(/\\h/g, ' ')
     .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, function (m, e) {
       if (e.charAt(0) === '#') {
         const n = e.charAt(1).toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
@@ -100,4 +103,10 @@ export class CueTrack {
   at(t) {
     return this.textAt(t);
   }
+}
+
+export const SUBTITLE_SIZES = [32, 38, 46, 56, 68];
+export const SUBTITLE_SIZE_LABELS = ['Small', 'Medium', 'Default', 'Large', 'Extra large'];
+export function subtitleSize(value) {
+  return SUBTITLE_SIZES.indexOf(value) >= 0 ? value : 46;
 }

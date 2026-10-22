@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { fakeStorage } from './fakes.mjs';
+globalThis.localStorage = fakeStorage();
+const session = await import('../app/js/session.js');
+const { savedSubtitles, saveSubtitles, preferredSubtitle, subtitlePreference } = await import('../app/js/player/subtitle-preferences.js');
+session.setBase('http://mock');
+session.signIn({ token: 'synthetic', userId: 'viewer', userName: 'Viewer' });
+const episode = (series) => ({ Type: 'Episode', SeriesId: series });
+const en = { id: 'ext:1', lang: 'eng', kind: 'ext', label: 'English' };
+const no = { id: 'emb:2', lang: 'nor', kind: 'emb', label: 'Norwegian' };
+test('each series retains language or Off independently across episodes', () => {
+  saveSubtitles(episode('a'), en);
+  saveSubtitles(episode('b'), no);
+  assert.equal(savedSubtitles(episode('a')).lang, 'en');
+  assert.equal(savedSubtitles(episode('b')).lang, 'no');
+  saveSubtitles(episode('a'), null);
+  saveSubtitles(episode('b'), en);
+  assert.equal(savedSubtitles(episode('a')).off, true);
+  session.signIn({ token: 'synthetic', userId: 'other', userName: 'Other' });
+  assert.equal(savedSubtitles(episode('a')).off, false, 'series setting belongs to its viewer');
+});
+test('matches language and variant despite changed track IDs; falls back only within language', () => {
+  const next = { ...en, id: 'ext:9', lang: 'en' };
+  assert.equal(preferredSubtitle([no, next], subtitlePreference(en)), next);
+  const embedded = { ...en, kind: 'emb' };
+  assert.equal(preferredSubtitle([embedded, next], subtitlePreference(en)), next);
+  assert.equal(preferredSubtitle([embedded], subtitlePreference(en)), embedded);
+  assert.equal(preferredSubtitle([no], subtitlePreference(en)), null);
+  assert.equal(preferredSubtitle([en], { off: true }), null);
+});
+test('unknown-language selections are remembered without becoming Off', () => {
+  const unknown = { id: 'ext:1', kind: 'ext', label: 'Subtitle 2' };
+  saveSubtitles(episode('unknown'), unknown);
+  const pref = savedSubtitles(episode('unknown'));
+  assert.equal(pref.off, false);
+  const next = { ...unknown, id: 'ext:8' };
+  assert.equal(preferredSubtitle([en, next], pref), next);
+  assert.equal(preferredSubtitle([{ ...next, label: 'Subtitle 3' }], pref), null);
+});

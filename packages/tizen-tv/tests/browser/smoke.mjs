@@ -206,6 +206,12 @@ try {
   });
   assert.equal(await p2.locator('.subs').evaluate(el => getComputedStyle(el).fontSize), '56px');
   assert.equal(await p2.evaluate(() => JSON.parse(localStorage.getItem('atv.player.subSize'))), 56);
+  await p2.evaluate(async () => {
+    const { top } = await import('/js/router.js');
+    top().onKey('down'); // tracks
+    top().onKey('left'); top().onKey('right'); // subtitles column
+    top().onKey('down'); top().onKey('enter'); // English
+  });
   const before = await p2.locator('.osd-sub').textContent();
   await p2.evaluate(async () => {
     const { top } = await import('/js/router.js');
@@ -214,6 +220,9 @@ try {
   await p2.waitForFunction(previous => document.querySelector('.osd-sub').textContent !== previous, before);
   assert.equal(await p2.locator('.subs').evaluate(el => getComputedStyle(el).fontSize), '56px');
   await p2.waitForFunction(() => !document.querySelector('.spinner').classList.contains('on'));
+  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('down'); });
+  assert.match(await p2.locator('.tracks-col:nth-child(2) .tracks-opt').filter({ hasText: '✓' }).textContent(), /English/, 'next episode restores subtitle selection');
+  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('back'); });
   const watchedRequest = p2.waitForResponse(r => r.url().includes('/UserPlayedItems/') && r.request().method() === 'POST');
   await p2.evaluate(async () => {
     const { top } = await import('/js/router.js');

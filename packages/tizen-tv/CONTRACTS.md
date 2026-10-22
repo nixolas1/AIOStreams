@@ -244,3 +244,12 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
   preserving pause state. Right focuses Next episode; Left from Next episode returns to Skip intro while available.
   Down/Back dismiss the intro selection. It disappears at the end of the intro or when the overlay closes.
   Seeking back into the intro makes it available on Up again. There is no automatic skip.
+
+## Series subtitle preferences
+
+- Subtitle selections are saved per server, user and series in `player.seriesSubs.*`. Off is explicit.
+  New series use the existing global subtitle default. Font size remains a saved global preference.
+- Each episode/source matches the remembered language (including ISO aliases), preferring the same label and
+  embedded/external kind when available. IDs and indexes are not reused across episodes. Unknown languages
+  require the same label and kind; unavailable languages stay off without discarding the saved choice.
+- Source retries reapply the preference; late addon subtitle discovery can apply a newly available match.

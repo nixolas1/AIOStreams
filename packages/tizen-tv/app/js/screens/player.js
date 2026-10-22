@@ -10,6 +10,7 @@ import * as jf from '../api/jellyfin.js';
 import * as hubs from '../api/hubs.js';
 import { creditMinutes, watchedAtStop } from '../player/progress.js';
 import { introSegments, introAt } from '../player/segments.js';
+import { savedSubtitles, saveSubtitles, preferredSubtitle } from '../player/subtitle-preferences.js';
 import * as router from '../router.js';
 import { createPlayer } from '../platform/player.js';
 import { setScreenSaver, isUhdPanel } from '../platform/tizen.js';
@@ -19,7 +20,7 @@ import { pickSource, nextSource, nameLines, isUhd, rankSources } from '../player
 import { parseCues, CueTrack, stripTags, SUBTITLE_SIZES, SUBTITLE_SIZE_LABELS, subtitleSize } from '../player/subtitles.js';
 import { Seeker, COMMIT_MS } from '../player/seek.js';
 import { createOsd } from '../player/osd.js';
-import { createTracksPanel, chooseAudio, audioLabel, subtitleLabel, sameLang, langCode } from '../player/tracks.js';
+import { createTracksPanel, chooseAudio, audioLabel, subtitleLabel, langCode } from '../player/tracks.js';
 
 const TICKS_PER_MS = 10000;
 const PROGRESS_MS = 10000;
@@ -397,6 +398,7 @@ export function PlayerScreen(args) {
     cueFor = '';
     osd.setSubtitle('');
     subId = 'off';
+    subTouched = false;
     audioTracks = [];
     embeddedText = [];
     subList = [];
@@ -443,12 +445,8 @@ export function PlayerScreen(args) {
 
   function autoSubtitle() {
     if (subTouched || subId !== 'off') return;
-    let lang = store.get('player.subLang', null);
-    if (lang == null) lang = store.get('subLang', 'off'); // Settings default until the viewer picks one
-    if (!lang || lang === 'off') return;
-    for (let i = 0; i < subList.length; i++) {
-      if (sameLang(subList[i].lang, lang)) { applySubtitle(subList[i]); return; }
-    }
+    const opt = preferredSubtitle(subList, savedSubtitles(item));
+    if (opt) applySubtitle(opt);
   }
 
   function applySubtitle(opt) {
@@ -470,13 +468,14 @@ export function PlayerScreen(args) {
     // External text: AVPlay draws nothing, so we fetch and draw it.
     player.selectText(null);
     const id = opt.id;
+    const mine = gen;
     cueFor = id;
     fetch(subtitleHref(opt.ref)).then(function (r) { return r.ok ? r.text() : ''; }).then(function (txt) {
-      if (!alive || cueFor !== id) return;
+      if (!alive || mine !== gen || cueFor !== id) return;
       cueTrack = new CueTrack(parseCues(txt));
       if (!cueTrack.cues.length) toast('Those subtitles are empty', 2500);
     }, function () {
-      if (alive && cueFor === id) toast("Couldn't load the subtitles", 3000);
+      if (alive && mine === gen && cueFor === id) toast("Couldn't load the subtitles", 3000);
     });
     subTimer = setInterval(function () {
       if (cueTrack && started && !seeking) osd.setSubtitle(cueTrack.textAt(player.time()));
@@ -507,7 +506,7 @@ export function PlayerScreen(args) {
     } else {
       subTouched = true;
       applySubtitle(opt.ref);
-      store.set('player.subLang', opt.ref ? (langCode(opt.ref.lang) || 'off') : 'off');
+      saveSubtitles(item, opt.ref);
     }
     panel.close();
   }

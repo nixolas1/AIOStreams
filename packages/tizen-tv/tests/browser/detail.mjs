@@ -242,6 +242,8 @@ try {
   await page.waitForSelector('.detail:not(.hidden) .pill', { timeout: 5000 });
   await page.waitForSelector('.detail:not(.hidden) .tile-episode', { timeout: 5000 });
   await settle(700);
+  const episodeMeta = (await texts('.detail:not(.hidden) .tile-episode .tile-sub')).filter(Boolean);
+  assert.ok(episodeMeta.length > 0 && episodeMeta.every(t => t === '45m  ·  Jun 2024'), 'episode runtime and air date: ' + JSON.stringify(episodeMeta));
   const pills = await texts('.detail:not(.hidden) .pill');
   assert.ok(pills.length >= 2 && /^Season 1/.test(pills[0]), 'seasons: ' + pills);
   labels = await texts('.detail:not(.hidden) .detail-btn');

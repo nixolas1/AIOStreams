@@ -6,7 +6,7 @@ import { h, setText, show, setTransform, toggleClass } from '../util/dom.js';
 import { load } from './images.js';
 import * as client from '../api/client.js';
 import { kindOf } from '../api/hubs.js';
-import { episodeLabel, duration, progressFraction } from '../util/format.js';
+import { episodeLabel, duration, aired, progressFraction } from '../util/format.js';
 
 export const KINDS = {
   wide: { w: 400, h: 225 },
@@ -67,7 +67,7 @@ function titleFor(item, kind) {
 
 function subFor(item, kind) {
   if (item.Type === 'Episode') {
-    if (kind === 'episode') return duration(item.RunTimeTicks);
+    if (kind === 'episode') return [duration(item.RunTimeTicks), aired(item.PremiereDate)].filter(Boolean).join('  ·  ');
     return episodeLabel(item) + (item.Name ? '  ' + item.Name : '');
   }
   if (item.Type === 'Season') return item.ChildCount ? item.ChildCount + ' episodes' : '';

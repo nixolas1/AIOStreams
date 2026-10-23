@@ -55,3 +55,17 @@ test('progressFraction', () => {
   assert.equal(f.progressFraction({}), 0);
   assert.equal(f.progressFraction({ RunTimeTicks: 100, UserData: { PlaybackPositionTicks: 50 } }), 0.5);
 });
+
+test('aired: recent dates, calendar cutoff, missing and future dates', () => {
+  const now = Date.UTC(2026, 9, 23, 12);
+  for (const [date, label] of [
+    ['2026-10-23', 'Today'], ['2026-10-22', '1 day ago'],
+    ['2026-10-21', '2 days ago'], ['2026-10-16', '1 week ago'],
+    ['2026-10-09', '2 weeks ago'], ['2026-09-23', '1 month ago'],
+    ['2026-08-23', '2 months ago'], ['2026-07-23', '3 months ago'],
+    ['2026-07-22', 'Jul 2026'], ['2024-06-15', 'Jun 2024'],
+    ['2026-11-01', 'Airs Nov 2026'], [undefined, ''], ['', ''], ['invalid', ''],
+  ]) assert.equal(f.aired(date, now), label, String(date));
+  assert.equal(f.aired('2026-01-31', Date.UTC(2026, 3, 30)), '3 months ago');
+  assert.equal(f.aired('2026-01-31', Date.UTC(2026, 4, 1)), 'Jan 2026');
+});

@@ -68,3 +68,28 @@ export function progressFraction(item) {
   if (!(f > 0) || f >= 1) return 0;
   return f;
 }
+
+// Air dates use UTC calendar days so midnight dates do not shift with TV timezone.
+export function aired(date, now) {
+  if (!date) return '';
+  const air = new Date(date);
+  const today = new Date(now == null ? Date.now() : now);
+  if (!isFinite(air.getTime()) || !isFinite(today.getTime())) return '';
+  const day = function (d) { return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+  const days = Math.floor((day(today) - day(air)) / 86400000);
+  const monthYear = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][air.getUTCMonth()] + ' ' + air.getUTCFullYear();
+  if (days < 0) return 'Airs ' + monthYear;
+  // Clamp the three-month anniversary to the last day of shorter months.
+  const end = new Date(Date.UTC(air.getUTCFullYear(), air.getUTCMonth() + 4, 0));
+  const cutoff = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), Math.min(air.getUTCDate(), end.getUTCDate()));
+  if (day(today) > cutoff) return monthYear;
+  if (days === 0) return 'Today';
+  if (days === 1) return '1 day ago';
+  if (days < 7) return days + ' days ago';
+  if (days < 30) {
+    const weeks = Math.floor(days / 7);
+    return weeks + (weeks === 1 ? ' week ago' : ' weeks ago');
+  }
+  const months = day(today) === cutoff ? 3 : Math.min(3, Math.floor(days / 30));
+  return months + (months === 1 ? ' month ago' : ' months ago');
+}

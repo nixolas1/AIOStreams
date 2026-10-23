@@ -64,6 +64,7 @@ export function createServer() {
       Name: tpl.names[(ep - 1) % tpl.names.length], ServerId: 'mock-server',
       Id: 'ep-' + sr.Id + '-s' + season + 'e' + ep, Type: 'Episode', SeriesId: sr.Id, SeriesName: sr.Name,
       SeasonId: 'se-' + sr.Id + '-' + season, ParentIndexNumber: season, IndexNumber: ep,
+      PremiereDate: '2024-06-15T00:00:00Z',
       ProductionYear: sr.ProductionYear, RunTimeTicks: 45 * TICKS_MIN, CommunityRating: 8.1,
       Overview: 'Mock episode ' + ep + ' of ' + sr.Name + '. The crew regroups after the events of the last hour.',
       ImageTags: { Primary: 't1' }, ParentBackdropImageTags: ['t1'], ParentLogoImageTag: 't1',

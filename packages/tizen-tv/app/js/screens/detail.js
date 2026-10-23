@@ -10,6 +10,7 @@ import * as hubs from '../api/hubs.js';
 import * as nav from '../nav.js';
 import { load as loadImage } from '../ui/images.js';
 import { imageFor } from '../ui/tile.js';
+import { createConfirm } from '../ui/confirm.js';
 import { createRow } from '../ui/row.js';
 import { toast } from '../ui/toast.js';
 import { debounce } from '../util/time.js';
@@ -104,6 +105,9 @@ export function DetailScreen(args) {
     onClose: function () { renderFocus(); },
   });
   el.appendChild(sources.el);
+  const confirm = createConfirm();
+  el.appendChild(confirm.el);
+  let markingSeason = false;
 
   // state
   let zone = 'buttons';
@@ -113,6 +117,7 @@ export function DetailScreen(args) {
   let focusPreferredEpisode = !!preferredEpisode;
   let btnIdx = 0;
   let seasons = [];
+  let seasonCount;
   let seasonIdx = 0;
   let nextEp = null;       // series: the episode Play acts on
   let firstEp = null;      // series: fallback when nothing is in progress
@@ -146,7 +151,8 @@ export function DetailScreen(args) {
     setText(title, episode ? item.SeriesName || item.Name || '' : item.Name || '');
     setLogo(imageFor(item, 'Logo', 640));
     setText(sub, episode ? episodeLabel(item) + (item.Name ? '   ' + item.Name : '') : (item.Taglines && item.Taglines[0]) || '');
-    setText(meta, metaLine(item));
+    // This server's series ChildCount is the episode total, not the season count.
+    setText(meta, metaLine(isSeries() ? Object.assign({}, item, { ChildCount: seasonCount }) : item));
     const bits = [];
     if (item.Genres && item.Genres.length) bits.push(item.Genres.slice(0, 3).join('  ·  '));
     const cast = (item.People || []).filter(function (p) { return p.Type === 'Actor'; }).slice(0, 3).map(function (p) { return p.Name; });
@@ -210,6 +216,29 @@ export function DetailScreen(args) {
       renderButtons();
       toast("Couldn't update watched state", 3000);
     }
+  }
+
+  function markSeasonWatched() {
+    const season = seasons[seasonIdx];
+    if (!season || markingSeason) return;
+    confirm.open({
+      title: 'Mark ' + (season.Name || 'season') + ' watched?',
+      sub: 'All episodes in this season will be marked as watched.',
+      confirm: 'Mark watched',
+      defaultConfirm: true,
+      onConfirm: async function () {
+        markingSeason = true;
+        try {
+          await jf.markPlayed(season.Id, true);
+          hubs.invalidate('resume');
+          hubs.invalidate('nextup');
+          if (alive) { toast((season.Name || 'Season') + ' marked watched', 2500); refresh(); }
+        } catch (e) {
+          if (alive) { toast("Couldn't mark the season watched. Try again.", 3000); refresh(); }
+        }
+        markingSeason = false;
+      },
+    });
   }
 
   async function removeFromResume(t) {
@@ -467,6 +496,8 @@ export function DetailScreen(args) {
           preferredEpisode ? jf.episodes(item.Id).catch(function () { return null; }) : Promise.resolve(null)]);
         if (!alive || mine !== loadToken) return;
         seasons = ((res[0] && res[0].Items) || []).filter(function (s) { return s.Type === 'Season' || !s.Type; });
+        seasonCount = seasons.filter(function (s) { return !isSpecial(s); }).length;
+        renderHeader();
         const history = (res[2] && res[2].Items) || [];
         for (let i = 0; i < history.length; i++) if (lastPlayed(history[i]) > lastPlayed(preferredEpisode || {})) preferredEpisode = history[i];
         nextEp = res[1] && res[1].Items && res[1].Items[0] ? res[1].Items[0] : null;
@@ -514,6 +545,7 @@ export function DetailScreen(args) {
 
   return {
     name: 'detail',
+    longEnter: true,
     el: el,
     onShow: function () {
       if (shown) refresh();
@@ -521,6 +553,7 @@ export function DetailScreen(args) {
       shown = true;
     },
     onKey: function (action) {
+      if (confirm.isOpen()) return confirm.onKey(action);
       if (sources.isOpen()) return sources.onKey(action);
       if (action === 'up') { if (zone !== 'buttons') moveZone(-1); return true; }
       if (action === 'down') { moveZone(1); return true; }
@@ -532,6 +565,7 @@ export function DetailScreen(args) {
       } else if (zone === 'series') {
         if (action === 'enter' && seriesButton) { seriesButton.run(); return true; }
       } else if (zone === 'seasons') {
+        if (action === 'longenter') { markSeasonWatched(); return true; }
         if (action === 'left' || action === 'right') {
           const n = seasonIdx + (action === 'right' ? 1 : -1);
           if (n >= 0 && n < seasons.length) { seasonIdx = n; renderFocus(); loadEpisodesSoon(); }
@@ -541,6 +575,11 @@ export function DetailScreen(args) {
       } else if (zone === 'episodes') {
         if (action === 'left') { episodesRow.move(-1); return true; }
         if (action === 'right') { episodesRow.move(1); return true; }
+        if (action === 'longenter') {
+          const ep = episodesRow.item();
+          if (ep) nav.go('openItem', ep);
+          return true;
+        }
         if (action === 'enter') { episodesRow.select(); return true; }
       } else if (zone === 'similar') {
         if (action === 'left') { similarRow.move(-1); return true; }
@@ -553,6 +592,7 @@ export function DetailScreen(args) {
     destroy: function () {
       alive = false;
       loadEpisodesSoon.cancel();
+      confirm.close();
       sources.destroy();
       if (episodesRow) episodesRow.destroy();
       if (similarRow) similarRow.destroy();

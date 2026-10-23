@@ -238,6 +238,13 @@ try {
     const jf = await import('/js/api/jellyfin.js');
     return (await jf.items({ includeItemTypes: 'Series', limit: 1 })).Items[0].Id;
   });
+  // The server's ChildCount can be an episode total, unrelated to actual seasons.
+  await page.route('**/Items/' + seriesId + '?*', async route => {
+    const response = await route.fetch();
+    const item = await response.json();
+    item.ChildCount = 16;
+    await route.fulfill({ response, json: item });
+  });
   await open(seriesId);
   await page.waitForSelector('.detail:not(.hidden) .pill', { timeout: 5000 });
   await page.waitForSelector('.detail:not(.hidden) .tile-episode', { timeout: 5000 });
@@ -245,6 +252,8 @@ try {
   const episodeMeta = (await texts('.detail:not(.hidden) .tile-episode .tile-sub')).filter(Boolean);
   assert.ok(episodeMeta.length > 0 && episodeMeta.every(t => t === '45m  ·  Jun 2024'), 'episode runtime and air date: ' + JSON.stringify(episodeMeta));
   const pills = await texts('.detail:not(.hidden) .pill');
+  assert.ok((await text('.detail:not(.hidden) .detail-meta')).includes(pills.length + ' seasons'), 'header counts actual seasons');
+  assert.ok(!(await text('.detail:not(.hidden) .detail-meta')).includes('16 seasons'));
   assert.ok(pills.length >= 2 && /^Season 1/.test(pills[0]), 'seasons: ' + pills);
   labels = await texts('.detail:not(.hidden) .detail-btn');
   assert.ok(/^Play /.test(labels[0]), 'series play label: ' + labels[0]);
@@ -258,6 +267,55 @@ try {
   await key('ArrowDown');
   await settle(400);
   assert.ok(await page.evaluate(() => !!document.querySelector('.detail:not(.hidden) .row.active .tile-episode')), 'episodes row active');
+
+  // Holding OK opens the selected episode's actions without starting playback.
+  const startsBeforeHold = server.playLog.filter(e => e.path === '/Sessions/Playing').length;
+  await page.keyboard.down('Enter');
+  await settle(650);
+  await page.keyboard.up('Enter');
+  await page.waitForFunction(() => document.querySelector('.detail:not(.hidden) .detail-sub').textContent.includes('S2'));
+  assert.equal(server.playLog.filter(e => e.path === '/Sessions/Playing').length, startsBeforeHold);
+  assert.equal(await page.locator('[data-screen="player"]').count(), 0);
+  await key('ArrowRight');
+  assert.equal(await text('.detail:not(.hidden) .detail-btn.focus'), 'Sources');
+  await key('Enter');
+  await page.waitForSelector('.sources.in .src-row');
+  await key('Escape');
+  await key('ArrowRight', 2);
+  assert.equal(await text('.detail:not(.hidden) .detail-btn.focus'), 'Mark watched');
+  await key('Enter');
+  await page.waitForFunction(() => document.querySelector('.detail:not(.hidden) .detail-btn.focus').textContent === 'Watched');
+  await settle(200);
+  const marked = await page.evaluate(async sid => {
+    const jf = await import('/js/api/jellyfin.js');
+    return (await jf.episodes(sid)).Items.filter(ep => ep.UserData.Played).map(ep => ep.ParentIndexNumber + ':' + ep.IndexNumber);
+  }, seriesId);
+  assert.deepEqual(marked, ['2:1'], 'only the selected episode is marked watched');
+  await key('Escape');
+  await page.waitForFunction(() => !!document.querySelector('.detail:not(.hidden) .row.active .tile-episode'));
+
+  // Season hold requires a separate confirmation and targets the season ID.
+  const seasonMarks = [];
+  await page.route('**/UserPlayedItems/se-*', async route => {
+    seasonMarks.push(new URL(route.request().url()).pathname.split('/').pop());
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"Played":true}' });
+  });
+  await key('ArrowUp');
+  const holdOK = async () => {
+    await page.keyboard.down('Enter');
+    await settle(650);
+    await page.keyboard.up('Enter');
+    await page.waitForSelector('.detail:not(.hidden) .confirm:not(.hidden)');
+  };
+  await holdOK();
+  assert.equal(await text('.detail:not(.hidden) .confirm-title'), 'Mark Season 2 watched?');
+  assert.deepEqual(seasonMarks, [], 'holding alone does not mark watched');
+  await key('Escape');
+  assert.deepEqual(seasonMarks, [], 'Back cancels');
+  await holdOK();
+  await key('Enter');
+  await settle(300);
+  assert.deepEqual(seasonMarks, ['se-' + seriesId + '-2']);
 
   // ---------- up next: start an episode 1.5 s before the clip ends; the card appears ----------
   await page.evaluate(async (sid) => {

@@ -223,6 +223,14 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
 
 ## Playback history and episode navigation
 
+- Series detail season counts come from the fetched season list, excluding Specials. Server
+  `ChildCount` is an episode total and must not be labeled as a season count there.
+
+- In series episode rows, short OK plays; holding OK opens that episode detail page for Sources and
+  Mark watched. Back returns to the series with its episode focus preserved.
+- Holding OK on a season offers confirmation to mark that season watched through its season ID.
+  Cancel/Back leaves watched state unchanged; successful marking refreshes the episode badges.
+
 - Continue watching uses `player/progress.js` `latestResume`: latest `UserData.LastPlayedDate` per `SeriesId`,
   with server order preserved for equal/missing dates. Movies and episodes without a series ID remain distinct.
 - `hubs.rememberPlayback` keeps the last 100 locally played series per server/user so completing the newest episode

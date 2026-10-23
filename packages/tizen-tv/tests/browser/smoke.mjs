@@ -109,33 +109,57 @@ try {
 
   await p2.waitForFunction(() => !document.getElementById('splash'));
 
-  // Country control: remote keys, persistence and refreshed row.
+  // Norwegian discovery: real remote keys, filter requests, Back refresh, persistence and Off.
+  const discoveryRequests = [];
+  p2.on('request', (r) => { if (r.url().includes('/Discover/NorwegianShows')) discoveryRequests.push(new URL(r.url())); });
   await p2.evaluate(async () => {
-    const store = await import('/js/util/store.js');
-    store.set('discovery.country', 'NO');
     const nav = await import('/js/nav.js');
     nav.go('openSettings');
   });
   await p2.waitForSelector('[data-screen="settings"]');
-  await p2.keyboard.press('ArrowDown');
-  await p2.waitForTimeout(40);
-  await p2.keyboard.press('ArrowDown');
-  await p2.waitForFunction(() => document.querySelector('.set-row.focus .set-label').textContent === 'Shows country');
-  assert.match(await p2.locator('.set-row.focus').textContent(), /Norway/);
+  async function downTo(label) {
+    for (let i = 0; i < 12; i++) {
+      if (await p2.locator('.set-row.focus .set-label').textContent() === label) return;
+      await p2.keyboard.press('ArrowDown'); await p2.waitForTimeout(40);
+    }
+    throw new Error('Setting not found: ' + label);
+  }
+  await downTo('Episodes aired');
+  assert.match(await p2.locator('.set-row.focus').textContent(), /This year/);
   if (process.env.TV_REGION_SCREENSHOT) await p2.screenshot({ path: process.env.TV_REGION_SCREENSHOT });
   await p2.keyboard.press('ArrowRight');
-  await p2.waitForFunction(() => document.querySelector('.set-row.focus').textContent.includes('Sweden'));
+  await p2.waitForFunction(() => document.querySelector('.set-row.focus').textContent.includes('This month'));
+  await downTo('Category');
+  await p2.keyboard.press('ArrowRight');
+  await p2.waitForFunction(() => document.querySelector('.set-row.focus').textContent.includes('Drama / crime'));
+  await downTo('Broadcaster');
+  await p2.keyboard.press('ArrowRight');
+  await p2.waitForFunction(() => document.querySelector('.set-row.focus').textContent.includes('NRK'));
   await p2.keyboard.press('Escape');
-  await p2.waitForFunction(() => Array.from(document.querySelectorAll('.row-title')).some((e) => e.textContent === 'Popular shows available in Sweden'));
-  assert.equal(await p2.evaluate(() => JSON.parse(localStorage.getItem('atv.discovery.country'))), 'SE');
-  await p2.evaluate(async () => {
-    const nav = await import('/js/nav.js');
-    const store = await import('/js/util/store.js');
-    store.set('discovery.country', 'off');
-    nav.go('openSettings');
-  });
+  await p2.waitForFunction(() => Array.from(document.querySelectorAll('.row-title')).some((e) => e.textContent === 'Norske serier · This month · Drama / crime · NRK'));
+  assert.ok(discoveryRequests.some(u => u.searchParams.get('Period') === 'month' && u.searchParams.get('Category') === 'drama' && u.searchParams.get('Source') === 'nrk' && u.searchParams.get('IncludeNews') === 'false'));
+  if (process.env.TV_NORWEGIAN_HOME_SCREENSHOT) {
+    for (let i = 0; i < 2; i++) { await p2.keyboard.press('ArrowDown'); await p2.waitForTimeout(40); }
+    for (let i = 0; i < 12; i++) { await p2.keyboard.press('ArrowUp'); await p2.waitForTimeout(40); }
+    for (let i = 0; i < 10; i++) {
+      const title = await p2.evaluate(() => { const el = document.querySelector('.row.active .row-title'); return el ? el.textContent : ''; });
+      if (title.indexOf('Norske serier') === 0) break;
+      await p2.keyboard.press('ArrowDown'); await p2.waitForTimeout(80);
+    }
+    assert.match(await p2.locator('.row.active .row-title').textContent(), /^Norske serier/);
+    await p2.waitForTimeout(300);
+    await p2.screenshot({ path: process.env.TV_NORWEGIAN_HOME_SCREENSHOT });
+  }
+  await p2.evaluate(async () => (await import('/js/nav.js')).go('openSettings'));
+  await downTo('Show Norske serier');
+  await p2.keyboard.press('Enter');
+  await p2.waitForFunction(() => document.querySelector('.set-row.focus').textContent.includes('Off'));
   await p2.keyboard.press('Escape');
-  await p2.waitForFunction(() => !Array.from(document.querySelectorAll('.row-title')).some((e) => /Popular shows available in/.test(e.textContent)));
+  await p2.waitForFunction(() => !Array.from(document.querySelectorAll('.row-title')).some((e) => /Norske serier/.test(e.textContent)));
+  await p2.reload();
+  await p2.waitForSelector('[data-screen="home"]');
+  assert.equal(await p2.evaluate(() => JSON.parse(localStorage.getItem('atv.discovery.norwegian.enabled'))), false);
+  assert.equal(await p2.evaluate(() => JSON.parse(localStorage.getItem('atv.discovery.norwegian.source'))), 'nrk');
 
   // 3. API layer against the mock, from inside the page (real fetch, real modules).
   const api = await p2.evaluate(async () => {

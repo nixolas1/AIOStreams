@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import {
+  norwegianShowOptions,
   tmdbFor,
   titlePreviews,
   buildContentItem,
@@ -95,6 +96,39 @@ router.get(
       return;
     }
     const titles = await tmdb.getRegionalShows(country);
+    const previews = await titlePreviews(await ctx.engine(), tmdb, titles);
+    const items = await itemsFromPreviews(ctx, previews);
+    send(req, res, items, items.length, 0);
+  })
+);
+
+router.get(
+  '/Discover/NorwegianShows',
+  jf(async (req, res, ctx) => {
+    const news = qs(req, 'IncludeNews');
+    const options = norwegianShowOptions({
+      period: qs(req, 'Period'),
+      category: qs(req, 'Category'),
+      source: qs(req, 'Source'),
+      includeNews:
+        news === undefined
+          ? false
+          : news === 'true'
+            ? true
+            : news === 'false'
+              ? false
+              : news,
+    });
+    if (!options) {
+      res.status(400).json({ error: 'Invalid Norwegian discovery filters' });
+      return;
+    }
+    const tmdb = tmdbFor(ctx.userData);
+    if (!tmdb) {
+      res.status(503).json({ error: 'TMDB is not configured' });
+      return;
+    }
+    const titles = await tmdb.getNorwegianShows(options);
     const previews = await titlePreviews(await ctx.engine(), tmdb, titles);
     const items = await itemsFromPreviews(ctx, previews);
     send(req, res, items, items.length, 0);

@@ -254,12 +254,16 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
   require the same label and kind; unavailable languages stay off without discarding the saved choice.
 - Source retries reapply the preference; late addon subtitle discovery can apply a newly available match.
 
-## Regional discovery
+## Norwegian discovery
 
-- `api/region.js`: local `discovery.country` setting, `auto|off|ISO alpha-2`, with
-  region-only device locale inference and no location network request.
-- `api/hubs.js` adds a country-keyed regional recipe to Home and Series.
-- `screens/hub.js` rebuilds country-dependent recipes on return from Settings,
-  drops cached regional rows for another country, and ignores detached row loads.
-- Authenticated `GET /Discover/RegionalShows?Country=NO` returns standard Jellyfin
-  list DTOs, using TMDB popularity with regional streaming-availability filtering.
+- `api/norwegian.js`: local `discovery.norwegian.*` preferences: enabled, period,
+  category, source, includeNews. Defaults: enabled, year, all, all, false. A previous
+  `discovery.country=off` remains Off until explicitly enabled.
+- `api/hubs.js` adds `norwegianRecipe()` to Home and Series. Its identity includes
+  every option and the current date; the heading identifies the selected filters.
+- `screens/hub.js` rebuilds these recipes on return from Settings, drops old regional
+  and mismatched Norwegian cache rows, and ignores detached row responses.
+- Authenticated `GET /Discover/NorwegianShows` takes Period/Category/Source/IncludeNews
+  and returns standard Jellyfin list DTOs. It ranks original-language no/nb/nn shows
+  by current popularity, filtering episode dates and original network metadata.
+- Legacy `/Discover/RegionalShows` remains available to old clients during rollout.

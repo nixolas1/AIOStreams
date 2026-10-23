@@ -1,4 +1,9 @@
-﻿import { Headers } from 'undici';
+import {
+  norwegianShowOptions,
+  norwegianShowQuery,
+  type NorwegianShowOptions,
+} from './norwegian-shows.js';
+import { Headers } from 'undici';
 import {
   appConfig,
   Cache,
@@ -970,6 +975,55 @@ export class TMDBMetadata {
         );
       },
       `regional-shows:${country}`,
+      3600
+    );
+  }
+
+  /** Current popularity of Norwegian-language shows aired during the requested period. */
+  public async getNorwegianShows(
+    input: Partial<NorwegianShowOptions> = {},
+    now = new Date()
+  ): Promise<TMDBTitle[]> {
+    const options = norwegianShowOptions(input);
+    if (!options) throw new Error('Invalid Norwegian discovery filters');
+    const params = norwegianShowQuery(options, now);
+    return TMDBMetadata.recommendationCache.wrap(
+      async () => {
+        // Each sorted first page has enough candidates to produce the combined top 20.
+        // Fail the whole request if a language fails; never cache a partial ranking.
+        const pages = await Promise.all(
+          ['no', 'nb', 'nn'].map(async (language) => {
+            const json = await this.getJson('/discover/tv', {
+              ...params,
+              with_original_language: language,
+            });
+            return json ? TitleListSchema.parse(json).results : [];
+          })
+        );
+        const unique = new Map<number, TMDBTitle>();
+        for (const r of pages.flat()) {
+          if (!r.name) continue;
+          const title: TMDBTitle = {
+            tmdbId: r.id,
+            mediaType: 'tv',
+            title: r.name,
+            date: r.first_air_date || undefined,
+            overview: r.overview || undefined,
+            posterPath: r.poster_path ?? undefined,
+            backdropPath: r.backdrop_path ?? undefined,
+            genreIds: r.genre_ids ?? [],
+            popularity: r.popularity ?? 0,
+            voteCount: r.vote_count ?? 0,
+          };
+          const previous = unique.get(r.id);
+          if (!previous || title.popularity > previous.popularity)
+            unique.set(r.id, title);
+        }
+        return [...unique.values()]
+          .sort((a, b) => b.popularity - a.popularity || a.tmdbId - b.tmdbId)
+          .slice(0, 20);
+      },
+      `norwegian-shows:v1:${JSON.stringify(params)}`,
       3600
     );
   }

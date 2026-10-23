@@ -2,7 +2,7 @@
 // The browse page shared by Home and the Movies / Series / Anime hubs:
 // top bar, hero (spotlight or focused item), and lazily loaded rows built from
 // api/hubs.js recipes. The last payload per page is cached for a fast cold start.
-import * as region from '../api/region.js';
+import * as norwegian from '../api/norwegian.js';
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import { createRow } from '../ui/row.js';
 import { createChips } from '../ui/chips.js';
@@ -40,7 +40,7 @@ function add(parent, tag, cls) {
  */
 export function createBrowsePage(opts) {
   const tab = opts.tab;
-  let browseCountry = region.country();
+  let browseDiscovery = norwegian.signature();
   const cacheKey = 'page.' + tab;
   const el = h('div', 'screen browse browse-' + tab);
   el.dataset.screen = opts.name;
@@ -301,7 +301,7 @@ export function createBrowsePage(opts) {
       s.state = 'done';
       layout();
       scheduleSave();
-    }, function (e) { if (alive) failed(s, e); });
+    }, function (e) { if (alive && slots.indexOf(s) >= 0) failed(s, e); });
   }
 
   function loadSlot(s) {
@@ -326,7 +326,7 @@ export function createBrowsePage(opts) {
       layout();
       if (s.recipe.spotlight) rebuildSpot();
       scheduleSave();
-    }, function (e) { if (alive) failed(s, e); });
+    }, function (e) { if (alive && slots.indexOf(s) >= 0) failed(s, e); });
   }
 
   function loadMore(s) {
@@ -424,7 +424,8 @@ export function createBrowsePage(opts) {
     const c = store.get(cacheKey, null);
     if (!c || c.v !== CACHE_VERSION || !c.rows) return false;
     c.rows.forEach(function (r) {
-      if (r.id.indexOf('regional-shows-') === 0 && r.id !== 'regional-shows-' + region.country()) return;
+      if (r.id.indexOf('regional-shows-') === 0) return;
+      if (r.id.indexOf('norwegian-shows-') === 0 && (!norwegian.enabled() || r.id !== norwegian.rowId())) return;
       const rec = { id: r.id, title: r.title, tile: r.tile, badge: r.badge, spotlight: r.spotlight, chips: !!r.chips };
       const s = { id: r.id, recipe: rec, ui: null, state: 'cached', total: 0, exhausted: true };
       s.ui = makeUi(s, rec, r);
@@ -580,8 +581,8 @@ export function createBrowsePage(opts) {
     longEnter: true,
     onShow: function () {
       shown = true;
-      if (browseCountry !== region.country()) {
-        browseCountry = region.country();
+      if (browseDiscovery !== norwegian.signature()) {
+        browseDiscovery = norwegian.signature();
         boot();
       }
       ambience.restore();

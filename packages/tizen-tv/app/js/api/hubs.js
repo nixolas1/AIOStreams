@@ -9,7 +9,7 @@
 // spotlight, fetch({start, limit}) -> Promise<{items, total, title?}>}.
 import * as jf from './jellyfin.js';
 import * as client from './client.js';
-import * as region from './region.js';
+import * as norwegian from './norwegian.js';
 import * as store from '../util/store.js';
 import * as session from '../session.js';
 import { latestResume } from '../player/progress.js';
@@ -570,13 +570,14 @@ function libraryRecipes() {
   return rows;
 }
 
-export function regionalRecipe() {
-  const code = region.country();
-  if (!code) return null;
-  return { id: 'regional-shows-' + code, title: 'Popular shows available in ' + region.countryName(code),
-    tile: 'poster', paged: false,
+export function norwegianRecipe() {
+  if (!norwegian.enabled()) return null;
+  const o = norwegian.options();
+  return { id: norwegian.rowId(), title: norwegian.title(), tile: 'poster', paged: false,
     fetch: async function () {
-      const result = await client.get('/Discover/RegionalShows', { Country: code });
+      const result = await client.get('/Discover/NorwegianShows', {
+        Period: o.period, Category: o.category, Source: o.source, IncludeNews: String(o.includeNews),
+      });
       return { items: tagItems(result.Items || [], 'series'), total: result.TotalRecordCount || 0 };
     },
   };
@@ -598,8 +599,8 @@ export function recipesFor(kindIn) {
   rows.push(resumeRecipe(kind, false));
   rows.push(favoritesRecipe(kind, false));
 
-  const regional = kind === 'series' ? regionalRecipe() : null;
-  if (regional) rows.push(regional);
+  const norwegianRow = kind === 'series' ? norwegianRecipe() : null;
+  if (norwegianRow) rows.push(norwegianRow);
 
   const trending = use(first('trending') || first('popular'));
   if (trending) rows.push(viewRecipe(trending, 'trending', 'Trending now', 5));
@@ -654,8 +655,8 @@ export function homeRecipes() {
   }
   rows.push(resumeRecipe(null, true));
   rows.push(nextUpRecipe(null, true));
-  const regional = regionalRecipe();
-  if (regional) rows.push(regional);
+  const norwegianRow = norwegianRecipe();
+  if (norwegianRow) rows.push(norwegianRow);
   rows.push(favoritesRecipe(null, true));
   viewsFor('library').slice(0, 2).forEach(function (v) { rows.push(libraryViewRecipe(v, true)); });
   rows.push(newReleases(['movie', 'series', 'anime'], 'new-week', 'New releases', 'poster', true));

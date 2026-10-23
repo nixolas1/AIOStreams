@@ -2,7 +2,7 @@
 // Settings: one vertical list with cream-invert focus, scrolled by transform.
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import * as store from '../util/store.js';
-import * as region from '../api/region.js';
+import * as norwegian from '../api/norwegian.js';
 import * as session from '../session.js';
 import * as jellyfin from '../api/jellyfin.js';
 import * as nav from '../nav.js';
@@ -109,14 +109,21 @@ export function SettingsScreen() {
       label: 'Signed in as', value: function () { return pending === 'out' ? 'Press OK again to sign out' : (session.userName() || 'Unknown') + '  ·  Sign out'; },
       run: function () { confirmThen('out', function () { session.signOut(); nav.go('openConnect'); }); },
     });
-    head('Discovery');
-    const setCountry = function (dx) {
-      store.set('discovery.country', cycle(region.choices(), region.preference(), dx));
-      hubs.clearBrowseCache();
-    };
-    defs.push({ label: 'Shows country', value: function () { return '‹  ' + region.label() + '  ›'; },
-      left: function () { setCountry(-1); }, right: function () { setCountry(1); }, run: function () { setCountry(1); } });
-    defs.push({ label: 'Ranking', value: function () { return 'TMDB popularity · local streaming availability'; } });
+    head('Norwegian shows');
+    function saveDiscovery(key, value) { norwegian.set(key, value); hubs.clearBrowseCache(); }
+    function discoveryChoice(key, title, choices) {
+      const step = function (dx) { saveDiscovery(key, cycle(choices.map(function (entry) { return entry[0]; }), norwegian.options()[key], dx)); };
+      defs.push({ label: title, value: function () { return '‹  ' + norwegian.label(choices, norwegian.options()[key]) + '  ›'; },
+        left: function () { step(-1); }, right: function () { step(1); }, run: function () { step(1); } });
+    }
+    defs.push({ label: 'Show Norske serier', value: function () { return norwegian.enabled() ? 'On' : 'Off'; },
+      run: function () { saveDiscovery('enabled', !norwegian.enabled()); } });
+    discoveryChoice('period', 'Episodes aired', norwegian.PERIODS);
+    discoveryChoice('category', 'Category', norwegian.CATEGORIES);
+    discoveryChoice('source', 'Broadcaster', norwegian.SOURCES);
+    defs.push({ label: 'Include news', value: function () { return norwegian.options().includeNews ? 'On' : 'Off'; },
+      run: function () { saveDiscovery('includeNews', !norwegian.options().includeNews); } });
+    defs.push({ label: 'Ranking', value: function () { return 'Current TMDB popularity · Norwegian-language originals'; } });
     head('Home rows');
     if (!views.length) {
       defs.push({ label: 'Catalogs', value: function () { return 'Loading...'; } });

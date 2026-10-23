@@ -17,3 +17,5 @@ export * from './similar.js';
 export * from './season-ids.js';
 export * from './tmdb-titles.js';
 export * from './suggestions/index.js';
+
+export { norwegianShowOptions } from '../metadata/norwegian-shows.js';

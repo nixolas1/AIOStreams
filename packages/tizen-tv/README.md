@@ -62,43 +62,47 @@ seconds, and Back closes and destroys the player. Restricted videos show an
 error. Browser tests mock YouTube to verify controls and cleanup; actual YouTube
 playback and codec compatibility must be checked on the TV.
 
-### Regional shows (2026-10-23)
+### Norwegian shows (2026-10-23)
 
-Settings → Discovery → Shows country selects a market, device-locale hint, or Off.
-Left/right changes it; OK advances. The setting stays on this device. Home and
-Series show “Popular shows available in <country>” and refresh on return from
-Settings. A locale with no region leaves the row hidden until a country is chosen;
-locale language alone is never treated as location. There is no IP geolocation.
-The picker includes 53 markets; an additional region supplied by the device is
-also retained as an option.
+Home and Series show **Norske serier**, replacing the regional-availability row.
+The approved default is Norwegian original-language shows with episodes aired this
+calendar year, excluding news, ranked by current TMDB popularity. This is not a
+measured annual/monthly viewing chart. Reality and entertainment stay included.
 
-This is **global TMDB popularity filtered to local streaming availability**, not
-local audience ratings, a local viewing chart, or shows produced in that country.
-It includes subscription, free and ad-supported offers across services, independent
-of the user's subscriptions. Results can be empty where availability data is sparse.
+Settings → Norwegian shows:
+- Show Norske serier: On / Off.
+- Episodes aired: This year / This month / All time (Norwegian calendar dates).
+- Category: All / Drama & crime / Comedy / Reality & entertainment / Documentary.
+- Broadcaster: All / NRK / TV 2 / HBO & Max / TVNorge / TV3 & Viaplay / Netflix.
+- Include news: Off by default.
 
-The authenticated `/Discover/RegionalShows?Country=NO` Jellyfin extension uses the
-server/user's existing TMDB credentials. It fetches the first 20 results from
-`/discover/tv` with `watch_region`, `with_watch_monetization_types=flatrate|free|ads`,
-`sort_by=popularity.desc`, and adult results disabled. It caches successful nonempty
-results by country for one hour, maps titles to metadata IDs supported by the user's
-addons, and returns ordinary Jellyfin items for existing details/playback. Missing
-TMDB configuration returns 503; upstream failures follow normal row retry handling.
-No unrelated global catalog is substituted under the regional heading.
+Left/right changes choices; OK advances or toggles. Preferences persist on-device,
+refresh on Back without restarting, and appear in the row heading. A prior explicit
+Off is preserved; an old country choice otherwise becomes Norwegian discovery.
+Old availability caches are discarded. Filters and date changes have distinct cache
+identities. Empty results hide the row; they never substitute unrelated shows.
 
-Research:
-- [TMDB Discover TV](https://developer.themoviedb.org/reference/discover-tv):
-  `watch_region` must accompany monetization/provider filters; origin country is a
-  separate filter and does not mean popular *in* a country.
-- [TMDB popularity](https://developer.themoviedb.org/docs/popularity-and-trending):
-  popularity is a TMDB activity score, not a regional viewing chart.
-- [JustWatch partner API](https://apis.justwatch.com/docs/api/): country chart ranks
-  are a partner API capability. Integrating genuine regional charts requires that
-  access and its attribution terms; this implementation does not scrape private APIs.
+`GET /Discover/NorwegianShows?Period=year&Category=all&Source=all&IncludeNews=false`
+is an authenticated Jellyfin extension. Invalid filters return 400; missing TMDB
+credentials return 503. Existing user/server credentials stay server-side. The
+old `/Discover/RegionalShows` route is retained for already-installed clients.
 
-Deployment requires both the updated server and widget. An older server lacks this
-extension. Build the server/core and package with `scripts/build_aiostreams_tv.sh`
-from the TV workspace; physical installation still requires separate owner approval.
-Validation: TV legacy check, unit tests, Chromium country switching/Off and existing
-smoke flows; core/server TypeScript builds; focused regional TMDB tests. Screenshots
-from synthetic browser fixtures are not evidence of physical TV behavior.
+The server queries TMDB Discover separately for `no`, `nb`, and `nn`, merges their
+first 20 results, deduplicates by TMDB ID, and ranks the combined top 20. Results are
+cached for one hour by query/date, then mapped to IDs supported by the user's meta
+addons. A failing language request fails the row rather than caching a partial list.
+
+Period means **episodes aired** (`air_date.gte/lte`), not the show's first premiere,
+so returning seasons remain eligible. Broadcaster uses `with_networks` with verified
+network ID groups, not `watch_region` or current streaming subscriptions. TMDB's
+network and episode metadata can be incomplete, particularly for smaller shows.
+
+Research: [Discover TV](https://developer.themoviedb.org/reference/discover-tv),
+[popularity methodology](https://developer.themoviedb.org/docs/popularity-and-trending).
+On 2026-10-23 the live default query returned the user-approved mix including Alle
+mot alle, Paradise Hotel, Nytt på nytt, Harry Hole, Kongen befaler, LIS and Nepobaby.
+
+Deployment requires both the server extension and widget update. Validate with the
+TV legacy check/unit tests/Chromium smoke, core/server TypeScript builds, and focused
+Norwegian discovery tests. Browser fixtures remain synthetic. Physical TV rendering
+is a separate check, and each TV install requires the owner's explicit approval.

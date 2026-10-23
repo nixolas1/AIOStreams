@@ -2,6 +2,7 @@
 // Settings: one vertical list with cream-invert focus, scrolled by transform.
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import * as store from '../util/store.js';
+import * as region from '../api/region.js';
 import * as session from '../session.js';
 import * as jellyfin from '../api/jellyfin.js';
 import * as nav from '../nav.js';
@@ -108,6 +109,14 @@ export function SettingsScreen() {
       label: 'Signed in as', value: function () { return pending === 'out' ? 'Press OK again to sign out' : (session.userName() || 'Unknown') + '  ·  Sign out'; },
       run: function () { confirmThen('out', function () { session.signOut(); nav.go('openConnect'); }); },
     });
+    head('Discovery');
+    const setCountry = function (dx) {
+      store.set('discovery.country', cycle(region.choices(), region.preference(), dx));
+      hubs.clearBrowseCache();
+    };
+    defs.push({ label: 'Shows country', value: function () { return '‹  ' + region.label() + '  ›'; },
+      left: function () { setCountry(-1); }, right: function () { setCountry(1); }, run: function () { setCountry(1); } });
+    defs.push({ label: 'Ranking', value: function () { return 'TMDB popularity · local streaming availability'; } });
     head('Home rows');
     if (!views.length) {
       defs.push({ label: 'Catalogs', value: function () { return 'Loading...'; } });

@@ -107,6 +107,36 @@ try {
   await p2.goto(origin + '/');
   await p2.waitForSelector('[data-screen="home"]', { timeout: 5000 });
 
+  await p2.waitForFunction(() => !document.getElementById('splash'));
+
+  // Country control: remote keys, persistence and refreshed row.
+  await p2.evaluate(async () => {
+    const store = await import('/js/util/store.js');
+    store.set('discovery.country', 'NO');
+    const nav = await import('/js/nav.js');
+    nav.go('openSettings');
+  });
+  await p2.waitForSelector('[data-screen="settings"]');
+  await p2.keyboard.press('ArrowDown');
+  await p2.waitForTimeout(40);
+  await p2.keyboard.press('ArrowDown');
+  await p2.waitForFunction(() => document.querySelector('.set-row.focus .set-label').textContent === 'Shows country');
+  assert.match(await p2.locator('.set-row.focus').textContent(), /Norway/);
+  if (process.env.TV_REGION_SCREENSHOT) await p2.screenshot({ path: process.env.TV_REGION_SCREENSHOT });
+  await p2.keyboard.press('ArrowRight');
+  await p2.waitForFunction(() => document.querySelector('.set-row.focus').textContent.includes('Sweden'));
+  await p2.keyboard.press('Escape');
+  await p2.waitForFunction(() => Array.from(document.querySelectorAll('.row-title')).some((e) => e.textContent === 'Popular shows available in Sweden'));
+  assert.equal(await p2.evaluate(() => JSON.parse(localStorage.getItem('atv.discovery.country'))), 'SE');
+  await p2.evaluate(async () => {
+    const nav = await import('/js/nav.js');
+    const store = await import('/js/util/store.js');
+    store.set('discovery.country', 'off');
+    nav.go('openSettings');
+  });
+  await p2.keyboard.press('Escape');
+  await p2.waitForFunction(() => !Array.from(document.querySelectorAll('.row-title')).some((e) => /Popular shows available in/.test(e.textContent)));
+
   // 3. API layer against the mock, from inside the page (real fetch, real modules).
   const api = await p2.evaluate(async () => {
     const jf = await import('/js/api/jellyfin.js');

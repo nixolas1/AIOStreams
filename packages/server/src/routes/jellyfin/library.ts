@@ -1,5 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import {
+  tmdbFor,
+  titlePreviews,
   buildContentItem,
   buildGenre,
   buildPerson,
@@ -75,6 +77,29 @@ import { metahubPoster } from './images.js';
 import { getMeta } from './resolve.js';
 
 const router: Router = Router({ mergeParams: true });
+
+// Authenticated, server-side TMDB credentials; no location lookup or client API key.
+router.get(
+  '/Discover/RegionalShows',
+  jf(async (req, res, ctx) => {
+    const country = (qs(req, 'Country') || '').toUpperCase();
+    if (!/^[A-Z]{2}$/.test(country)) {
+      res
+        .status(400)
+        .json({ error: 'Country must be an ISO 3166-1 alpha-2 code' });
+      return;
+    }
+    const tmdb = tmdbFor(ctx.userData);
+    if (!tmdb) {
+      res.status(503).json({ error: 'TMDB is not configured' });
+      return;
+    }
+    const titles = await tmdb.getRegionalShows(country);
+    const previews = await titlePreviews(await ctx.engine(), tmdb, titles);
+    const items = await itemsFromPreviews(ctx, previews);
+    send(req, res, items, items.length, 0);
+  })
+);
 
 const withoutRequiredGenre = (views: ViewEntry[]) =>
   views.filter((v) => !requiresGenre(v.catalog));

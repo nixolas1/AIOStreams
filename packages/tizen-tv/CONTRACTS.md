@@ -253,3 +253,13 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
   embedded/external kind when available. IDs and indexes are not reused across episodes. Unknown languages
   require the same label and kind; unavailable languages stay off without discarding the saved choice.
 - Source retries reapply the preference; late addon subtitle discovery can apply a newly available match.
+
+## Regional discovery
+
+- `api/region.js`: local `discovery.country` setting, `auto|off|ISO alpha-2`, with
+  region-only device locale inference and no location network request.
+- `api/hubs.js` adds a country-keyed regional recipe to Home and Series.
+- `screens/hub.js` rebuilds country-dependent recipes on return from Settings,
+  drops cached regional rows for another country, and ignores detached row loads.
+- Authenticated `GET /Discover/RegionalShows?Country=NO` returns standard Jellyfin
+  list DTOs, using TMDB popularity with regional streaming-availability filtering.

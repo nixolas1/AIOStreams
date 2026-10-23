@@ -8,6 +8,8 @@
 // A "recipe" describes one row: {id, title, tile:'wide'|'poster', badge, paged,
 // spotlight, fetch({start, limit}) -> Promise<{items, total, title?}>}.
 import * as jf from './jellyfin.js';
+import * as client from './client.js';
+import * as region from './region.js';
 import * as store from '../util/store.js';
 import * as session from '../session.js';
 import { latestResume } from '../player/progress.js';
@@ -568,6 +570,18 @@ function libraryRecipes() {
   return rows;
 }
 
+export function regionalRecipe() {
+  const code = region.country();
+  if (!code) return null;
+  return { id: 'regional-shows-' + code, title: 'Popular shows available in ' + region.countryName(code),
+    tile: 'poster', paged: false,
+    fetch: async function () {
+      const result = await client.get('/Discover/RegionalShows', { Country: code });
+      return { items: tagItems(result.Items || [], 'series'), total: result.TotalRecordCount || 0 };
+    },
+  };
+}
+
 /** Ordered row recipes for a hub ('movies'|'series'|'anime'). */
 export function recipesFor(kindIn) {
   const kind = normKind(kindIn);
@@ -583,6 +597,9 @@ export function recipesFor(kindIn) {
 
   rows.push(resumeRecipe(kind, false));
   rows.push(favoritesRecipe(kind, false));
+
+  const regional = kind === 'series' ? regionalRecipe() : null;
+  if (regional) rows.push(regional);
 
   const trending = use(first('trending') || first('popular'));
   if (trending) rows.push(viewRecipe(trending, 'trending', 'Trending now', 5));
@@ -637,6 +654,8 @@ export function homeRecipes() {
   }
   rows.push(resumeRecipe(null, true));
   rows.push(nextUpRecipe(null, true));
+  const regional = regionalRecipe();
+  if (regional) rows.push(regional);
   rows.push(favoritesRecipe(null, true));
   viewsFor('library').slice(0, 2).forEach(function (v) { rows.push(libraryViewRecipe(v, true)); });
   rows.push(newReleases(['movie', 'series', 'anime'], 'new-week', 'New releases', 'poster', true));

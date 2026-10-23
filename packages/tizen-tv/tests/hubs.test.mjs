@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { fakeStorage } from './fakes.mjs';
 
 globalThis.localStorage = fakeStorage();
+localStorage.setItem('atv.discovery.country', JSON.stringify('off'));
 const session = await import('../app/js/session.js');
 const { classify, roleOf, viewsFor, recipesFor, homeRecipes, kindOf, tagItems, clearBrowseCache, isAnimeItem, catalogOf, kindOfView } =
   await import('../app/js/api/hubs.js');

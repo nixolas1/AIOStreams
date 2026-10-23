@@ -61,3 +61,44 @@ The TV app retains remote focus: OK toggles playback, Left/Right seek ten
 seconds, and Back closes and destroys the player. Restricted videos show an
 error. Browser tests mock YouTube to verify controls and cleanup; actual YouTube
 playback and codec compatibility must be checked on the TV.
+
+### Regional shows (2026-10-23)
+
+Settings → Discovery → Shows country selects a market, device-locale hint, or Off.
+Left/right changes it; OK advances. The setting stays on this device. Home and
+Series show “Popular shows available in <country>” and refresh on return from
+Settings. A locale with no region leaves the row hidden until a country is chosen;
+locale language alone is never treated as location. There is no IP geolocation.
+The picker includes 53 markets; an additional region supplied by the device is
+also retained as an option.
+
+This is **global TMDB popularity filtered to local streaming availability**, not
+local audience ratings, a local viewing chart, or shows produced in that country.
+It includes subscription, free and ad-supported offers across services, independent
+of the user's subscriptions. Results can be empty where availability data is sparse.
+
+The authenticated `/Discover/RegionalShows?Country=NO` Jellyfin extension uses the
+server/user's existing TMDB credentials. It fetches the first 20 results from
+`/discover/tv` with `watch_region`, `with_watch_monetization_types=flatrate|free|ads`,
+`sort_by=popularity.desc`, and adult results disabled. It caches successful nonempty
+results by country for one hour, maps titles to metadata IDs supported by the user's
+addons, and returns ordinary Jellyfin items for existing details/playback. Missing
+TMDB configuration returns 503; upstream failures follow normal row retry handling.
+No unrelated global catalog is substituted under the regional heading.
+
+Research:
+- [TMDB Discover TV](https://developer.themoviedb.org/reference/discover-tv):
+  `watch_region` must accompany monetization/provider filters; origin country is a
+  separate filter and does not mean popular *in* a country.
+- [TMDB popularity](https://developer.themoviedb.org/docs/popularity-and-trending):
+  popularity is a TMDB activity score, not a regional viewing chart.
+- [JustWatch partner API](https://apis.justwatch.com/docs/api/): country chart ranks
+  are a partner API capability. Integrating genuine regional charts requires that
+  access and its attribution terms; this implementation does not scrape private APIs.
+
+Deployment requires both the updated server and widget. An older server lacks this
+extension. Build the server/core and package with `scripts/build_aiostreams_tv.sh`
+from the TV workspace; physical installation still requires separate owner approval.
+Validation: TV legacy check, unit tests, Chromium country switching/Off and existing
+smoke flows; core/server TypeScript builds; focused regional TMDB tests. Screenshots
+from synthetic browser fixtures are not evidence of physical TV behavior.

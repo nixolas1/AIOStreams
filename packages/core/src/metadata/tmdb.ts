@@ -515,8 +515,7 @@ export class TMDBMetadata {
     let releaseDate: string | undefined;
     let yearEnd: string | undefined;
     let seasons:
-      | Array<{ season_number: number; episode_count: number }>
-      | undefined;
+      Array<{ season_number: number; episode_count: number }> | undefined;
     let allTitles: MetadataTitle[] = [];
     let originalLanguage: string | undefined;
     let country: string | undefined;
@@ -934,6 +933,44 @@ export class TMDBMetadata {
       },
       `${mediaType}:${tmdbId}`,
       RECOMMENDATION_CACHE_TTL
+    );
+  }
+
+  /** Global popularity, restricted to streaming availability in this market. */
+  public async getRegionalShows(country: string): Promise<TMDBTitle[]> {
+    if (!/^[A-Z]{2}$/.test(country)) throw new Error('Invalid country');
+    return TMDBMetadata.recommendationCache.wrap(
+      async () => {
+        const json = await this.getJson('/discover/tv', {
+          watch_region: country,
+          with_watch_monetization_types: 'flatrate|free|ads',
+          sort_by: 'popularity.desc',
+          include_adult: 'false',
+          include_null_first_air_dates: 'false',
+          page: '1',
+        });
+        return (json ? TitleListSchema.parse(json).results : []).flatMap(
+          (r): TMDBTitle[] =>
+            r.name
+              ? [
+                  {
+                    tmdbId: r.id,
+                    mediaType: 'tv',
+                    title: r.name,
+                    date: r.first_air_date || undefined,
+                    overview: r.overview || undefined,
+                    posterPath: r.poster_path ?? undefined,
+                    backdropPath: r.backdrop_path ?? undefined,
+                    genreIds: r.genre_ids ?? [],
+                    popularity: r.popularity ?? 0,
+                    voteCount: r.vote_count ?? 0,
+                  },
+                ]
+              : []
+        );
+      },
+      `regional-shows:${country}`,
+      3600
     );
   }
 

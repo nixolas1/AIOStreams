@@ -69,3 +69,24 @@ test('aired: recent dates, calendar cutoff, missing and future dates', () => {
   assert.equal(f.aired('2026-01-31', Date.UTC(2026, 3, 30)), '3 months ago');
   assert.equal(f.aired('2026-01-31', Date.UTC(2026, 4, 1)), 'Jan 2026');
 });
+
+
+test('release dates: recent three calendar months, future, fallback and ordinal suffixes', () => {
+  const now = Date.UTC(2026, 9, 24);
+  const item = date => ({ Type: 'Movie', ProductionYear: 2026, PremiereDate: date });
+  assert.equal(f.releaseDate(item('2026-07-24'), now), '2026 July 24th');
+  assert.equal(f.releaseDate(item('2026-07-23'), now), '2026');
+  assert.equal(f.releaseDate(item('2026-10-24'), now), '2026 October 24th');
+  assert.equal(f.releaseDate(item('2027-05-16'), now), '2027 May 16th');
+  assert.equal(f.releaseDate(item('2026-05-16'), Date.UTC(2026, 5, 1)), '2026 May 16th');
+  for (const [day, suffix] of [[1, 'st'], [2, 'nd'], [3, 'rd'], [11, 'th'], [12, 'th'], [13, 'th'], [21, 'st'], [22, 'nd'], [23, 'rd'], [31, 'st']]) {
+    assert.equal(f.releaseDate(item('2026-12-' + String(day).padStart(2, '0')), now), '2026 December ' + day + suffix);
+  }
+  assert.equal(f.releaseDate(item('2026-01-31'), Date.UTC(2026, 3, 30)), '2026 January 31st');
+  assert.equal(f.releaseDate(item('2026-01-31'), Date.UTC(2026, 4, 1)), '2026');
+  assert.equal(f.releaseDate(item('invalid'), now), '2026');
+  assert.equal(f.releaseDate(item(undefined), now), '2026');
+  assert.equal(f.releaseDate({}, now), '');
+  assert.equal(f.metaLine({ ...item('2026-10-16'), RunTimeTicks: 106 * MIN, OfficialRating: 'PG-13', CommunityRating: 8 }, now),
+    '2026 October 16th  ·  1h 46m  ·  PG-13  ·  ★ 8.0');
+});

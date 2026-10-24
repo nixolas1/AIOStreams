@@ -37,15 +37,33 @@ export function episodeLabel(item) {
   return (s != null ? 'S' + s : '') + (s != null && e != null ? ' · ' : '') + (e != null ? 'E' + e : '');
 }
 
+// Recent and upcoming releases use the full UTC calendar date; older titles keep the year.
+export function releaseDate(item, now) {
+  const fallback = item.ProductionYear ? String(item.ProductionYear) : '';
+  if (!item.PremiereDate) return fallback;
+  const date = new Date(item.PremiereDate);
+  const today = new Date(now == null ? Date.now() : now);
+  if (!isFinite(date.getTime()) || !isFinite(today.getTime())) return fallback;
+  const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 4, 0));
+  const cutoff = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), Math.min(date.getUTCDate(), end.getUTCDate()));
+  const currentDay = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  if (currentDay > cutoff) return fallback || String(date.getUTCFullYear());
+  const day = date.getUTCDate();
+  const suffix = day % 100 >= 11 && day % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[day % 10] || 'th');
+  const month = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][date.getUTCMonth()];
+  return date.getUTCFullYear() + ' ' + month + ' ' + day + suffix;
+}
+
 // "2008  ·  1h 46m  ·  PG-13  ·  ★ 5.8" (series: "N seasons" instead of runtime).
-export function metaLine(item) {
+export function metaLine(item, now) {
   const parts = [];
   if (!item) return '';
   if (item.Type === 'Episode') {
     const label = episodeLabel(item);
     if (label) parts.push(label);
-  } else if (item.ProductionYear) {
-    parts.push(item.ProductionYear);
+  } else {
+    const date = releaseDate(item, now);
+    if (date) parts.push(date);
   }
   if (item.Type === 'Series') {
     if (item.ChildCount) parts.push(item.ChildCount + (item.ChildCount === 1 ? ' season' : ' seasons'));

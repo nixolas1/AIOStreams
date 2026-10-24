@@ -344,6 +344,34 @@ try {
   assert.equal(focusedId, episode.Id.replace(/e3$/, 'e4'), 'Go to series focuses the last-played episode');
 
 
+  // Trailer layout and playback messages use a local bridge fixture, without YouTube.
+  await p2.route('**/static/tv-trailer.html*', route => route.fulfill({
+    contentType: 'text/html', body: '<!doctype html><body style="margin:0;background:black">Trailer fixture</body>',
+  }));
+  await p2.evaluate(async () => {
+    const { TrailerScreen } = await import('/js/screens/trailer.js');
+    const { push } = await import('/js/router.js');
+    push(TrailerScreen({ id: 'fixture123', title: 'Test film' }));
+  });
+  const trailer = p2.locator('.screen.trailer');
+  const help = trailer.getByText('OK: Play / pause', { exact: false });
+  await help.waitFor({ state: 'visible' });
+  const frameBounds = await trailer.locator('iframe').boundingBox();
+  assert.deepEqual(frameBounds, { x: 0, y: 0, width: 1920, height: 1080 });
+  await p2.waitForFunction(() => {
+    const frame = document.querySelector('.trailer iframe');
+    return frame.contentDocument && frame.contentDocument.body.textContent.includes('Trailer fixture');
+  });
+  await p2.evaluate(() => document.querySelector('.trailer iframe').contentWindow.eval(
+    "parent.postMessage({type:'tv-trailer',state:'playing'}, location.origin)"));
+  await help.waitFor({ state: 'hidden' });
+  assert.equal(await trailer.getByText('Loading trailer…', { exact: true }).count(), 0);
+  await p2.evaluate(() => document.querySelector('.trailer iframe').contentWindow.eval(
+    "parent.postMessage({type:'tv-trailer',state:'paused'}, location.origin)"));
+  assert.equal(await help.isVisible(), false, 'Help stays hidden after playback begins');
+  await p2.keyboard.press('Escape');
+  await trailer.waitFor({ state: 'detached' });
+
   assert.deepEqual(errors, [], 'page errors: ' + errors.join(' | '));
   await ctx2.close();
   console.log('smoke: ok (' + path.basename(exe) + ')');

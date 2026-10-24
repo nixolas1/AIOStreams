@@ -1,5 +1,5 @@
 // The HTTP-hosted bridge supplies the web referrer required by YouTube embeds.
-import { h, setText } from '../util/dom.js';
+import { h, setText, show } from '../util/dom.js';
 import * as router from '../router.js';
 import { getBase } from '../session.js';
 import { setScreenSaver } from '../platform/tizen.js';
@@ -9,7 +9,7 @@ export function TrailerScreen(args) {
   el.style.background = '#000';
   const status = h('div', { style: { position: 'absolute', top: '20px', left: '48px', fontSize: '26px' } }, 'Loading trailer…');
   const hint = h('div', { style: { position: 'absolute', bottom: '20px', left: '48px', fontSize: '24px' } }, 'OK: Play / pause    ← →: Seek    Back: Close');
-  const frame = h('iframe', { title: args.title + ' trailer', tabindex: '-1', allow: 'autoplay; encrypted-media; fullscreen', referrerpolicy: 'strict-origin-when-cross-origin', style: { position: 'absolute', left: '96px', top: '80px', width: '1728px', height: '920px', border: '0', pointerEvents: 'none' } });
+  const frame = h('iframe', { title: args.title + ' trailer', tabindex: '-1', allow: 'autoplay; encrypted-media; fullscreen', referrerpolicy: 'strict-origin-when-cross-origin', style: { position: 'absolute', left: '0', top: '0', width: '100%', height: '100%', border: '0', pointerEvents: 'none' } });
   const origin = new URL(getBase(), location.href).origin;
   frame.src = origin + '/static/tv-trailer.html#' + encodeURIComponent(args.id);
   el.appendChild(frame);
@@ -19,7 +19,7 @@ export function TrailerScreen(args) {
   function receive(e) {
     if (e.source !== frame.contentWindow || e.origin !== origin || !e.data || e.data.type !== 'tv-trailer') return;
     clearTimeout(timer);
-    if (e.data.state === 'playing') { setText(status, ''); setScreenSaver(false); }
+    if (e.data.state === 'playing') { setText(status, ''); show(hint, false); setScreenSaver(false); }
     else if (e.data.state === 'error') { setText(status, 'YouTube could not play this trailer (' + e.data.code + '). Press Back to return.'); setScreenSaver(true); }
     else { setText(status, args.title + ' · Trailer'); setScreenSaver(true); }
   }

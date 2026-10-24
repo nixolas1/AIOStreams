@@ -33,7 +33,7 @@ test('episodeLabel', () => {
 
 test('metaLine movie', () => {
   const m = { Type: 'Movie', ProductionYear: 2008, OfficialRating: 'PG-13', RunTimeTicks: 106 * MIN, CommunityRating: 5.84 };
-  assert.equal(f.metaLine(m), '2008  ·  PG-13  ·  1h 46m  ·  ★ 5.8');
+  assert.equal(f.metaLine(m), '2008  ·  1h 46m  ·  PG-13  ·  ★ 5.8');
 });
 
 test('metaLine series uses seasons', () => {

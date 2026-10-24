@@ -37,7 +37,7 @@ export function episodeLabel(item) {
   return (s != null ? 'S' + s : '') + (s != null && e != null ? ' · ' : '') + (e != null ? 'E' + e : '');
 }
 
-// "2008  ·  PG-13  ·  1h 46m  ·  ★ 5.8" (series: "N seasons" instead of runtime).
+// "2008  ·  1h 46m  ·  PG-13  ·  ★ 5.8" (series: "N seasons" instead of runtime).
 export function metaLine(item) {
   const parts = [];
   if (!item) return '';
@@ -47,13 +47,13 @@ export function metaLine(item) {
   } else if (item.ProductionYear) {
     parts.push(item.ProductionYear);
   }
-  if (item.OfficialRating) parts.push(item.OfficialRating);
   if (item.Type === 'Series') {
     if (item.ChildCount) parts.push(item.ChildCount + (item.ChildCount === 1 ? ' season' : ' seasons'));
   } else {
     const d = duration(item.RunTimeTicks);
     if (d) parts.push(d);
   }
+  if (item.OfficialRating) parts.push(item.OfficialRating);
   if (item.CommunityRating) parts.push('★ ' + Number(item.CommunityRating).toFixed(1));
   return parts.join('  ·  ');
 }

@@ -56,7 +56,7 @@ not return true, so a long press never feels broken elsewhere.
 - `util/store.js`: `get(key, fallback)`, `set(key, value)` (undefined removes; returns bool), `remove(key)`. Prefix `atv.`.
 - `util/format.js` (Jellyfin BaseItemDto; ticks are 100 ns): `duration(ticks)` "1h 46m", `clock(ms)` "1:02:03",
   `endsAt(remainingMs[, now])` "21:42", `episodeLabel(item)` "S1 · E2", `metaLine(item)`
-  "2008  ·  PG-13  ·  1h 46m  ·  ★ 5.8" (series: "N seasons"), `progressFraction(item)` 0..1 from UserData.
+  "2008  ·  1h 46m  ·  PG-13  ·  ★ 5.8" (series: "N seasons"), `progressFraction(item)` 0..1 from UserData.
 - `util/time.js`: `sleep(ms)`, `debounce(fn, ms)` (+`.cancel()`).
 - `util/longpress.js`: `createLongPress(fire, {ms, now})` -> `{down(repeat), up(), cancel(), pressed()}`; `LONG_MS = 450`.
 

@@ -298,7 +298,7 @@ export function DetailScreen(args) {
       addButton(list, 'sources', ICONS.sources, 'Sources', function () { sources.open(t); renderFocus(); });
     }
     if (item.RemoteTrailers && item.RemoteTrailers.length) addButton(list, 'trailer', ICONS.trailer, 'Trailer', openTrailer);
-    addButton(list, 'watchlist', ud.IsFavorite ? ICONS.check : ICONS.list, ud.IsFavorite ? 'In watchlist' : 'Watchlist', toggleFavorite);
+    addButton(list, 'watchlist', ud.IsFavorite ? ICONS.check : ICONS.list, ud.IsFavorite ? 'In watchlist' : 'Add to watchlist', toggleFavorite);
     addButton(list, 'watched', ud.Played ? ICONS.check : ICONS.flag, ud.Played ? 'Watched' : 'Mark watched', toggleWatched);
     if (t && startOf(t) > 0) addButton(list, 'unresume', ICONS.remove, 'Remove from Continue watching', function () { removeFromResume(t); });
     if (inNextUp && (item.Type === 'Series' || (item.Type === 'Episode' && item.SeriesId))) {

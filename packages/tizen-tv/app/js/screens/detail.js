@@ -96,6 +96,12 @@ export function DetailScreen(args) {
   el.appendChild(scrimL);
   el.appendChild(scrimB);
   el.appendChild(body);
+  const trailerHint = h('div', 'detail-trailer-hint', [
+    h('span', { class: 'detail-trailer-arrow', 'aria-hidden': 'true' }, '↑'),
+    h('span', '', 'Up to watch trailer'),
+  ]);
+  show(trailerHint, false);
+  el.appendChild(trailerHint);
 
   const sources = createSourcesPanel({
     onPlay: function (it, source, info, startMs) {
@@ -180,10 +186,15 @@ export function DetailScreen(args) {
     list.push({ key: key, icon: icon, label: label, run: run });
   }
 
-  function openTrailer() {
+  function trailerId() {
     const trailers = item.RemoteTrailers || [];
     let id = '';
     for (let i = 0; i < trailers.length && !id; i++) id = youtubeId(trailers[i] && trailers[i].Url);
+    return id;
+  }
+
+  function openTrailer() {
+    const id = trailerId();
     if (!id) { toast('No YouTube trailer for this title', 3000); return; }
     router.push(TrailerScreen({ id: id, title: item.Name }));
   }
@@ -439,6 +450,7 @@ export function DetailScreen(args) {
   function renderFocus() {
     if (zone !== 'buttons' && zones().indexOf(zone) < 0) zone = 'buttons';
     const panelOpen = sources.isOpen();
+    show(trailerHint, item.Type === 'Movie' && !!trailerId() && zone === 'buttons' && !panelOpen && !confirm.isOpen());
     if (seriesButton) toggleClass(seriesButton.el, 'focus', zone === 'series' && !panelOpen);
     for (let i = 0; i < buttons.length; i++) toggleClass(buttons[i].el, 'focus', zone === 'buttons' && !panelOpen && i === btnIdx);
     // A long row (Resume, Remove from ...) slides left so the focused button stays inside the 96 px margin.
@@ -555,7 +567,11 @@ export function DetailScreen(args) {
     onKey: function (action) {
       if (confirm.isOpen()) return confirm.onKey(action);
       if (sources.isOpen()) return sources.onKey(action);
-      if (action === 'up') { if (zone !== 'buttons') moveZone(-1); return true; }
+      if (action === 'up') {
+        if (zone !== 'buttons') moveZone(-1);
+        else if (item.Type === 'Movie' && trailerId()) openTrailer();
+        return true;
+      }
       if (action === 'down') { moveZone(1); return true; }
       if (action === 'play' || action === 'playpause') { playFocused(); return true; }
       if (zone === 'buttons') {

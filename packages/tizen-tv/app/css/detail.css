@@ -260,3 +260,12 @@ video.av-object { background: #000; object-fit: contain; }
 .osd-intro { position: absolute; right: 96px; top: 32px; padding: 16px 26px; border: 2px solid transparent; border-radius: 12px; background: rgba(0,0,0,0.65); color: var(--text); font: 600 28px/36px var(--body); pointer-events: none; }
 .osd.on .osd-intro { pointer-events: auto; }
 .osd-intro.focus { border-color: var(--cream); background: var(--cream); color: var(--bg); }
+
+/* Movie trailer shortcut, above the detail content. */
+.detail-trailer-hint {
+  position: absolute; top: 28px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; padding: 10px 22px;
+  border-radius: 28px; background: rgba(0, 0, 0, 0.6);
+  color: var(--text); font-size: 24px; pointer-events: none;
+}
+.detail-trailer-arrow { font-size: 32px; line-height: 1; margin-right: 12px; }

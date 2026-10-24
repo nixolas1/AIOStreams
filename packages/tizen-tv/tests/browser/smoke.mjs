@@ -348,11 +348,17 @@ try {
   await p2.route('**/static/tv-trailer.html*', route => route.fulfill({
     contentType: 'text/html', body: '<!doctype html><body style="margin:0;background:black">Trailer fixture</body>',
   }));
-  await p2.evaluate(async () => {
-    const { TrailerScreen } = await import('/js/screens/trailer.js');
+  const trailerMovie = { Id: 'trailer-shortcut-movie', Type: 'Movie', Name: 'Test film',
+    RemoteTrailers: [{ Url: 'https://www.youtube.com/watch?v=fixture123' }] };
+  await p2.route('**/Items/trailer-shortcut-movie?*', route => route.fulfill({ json: trailerMovie }));
+  await p2.evaluate(async movie => {
+    const { DetailScreen } = await import('/js/screens/detail.js');
     const { push } = await import('/js/router.js');
-    push(TrailerScreen({ id: 'fixture123', title: 'Test film' }));
-  });
+    push(DetailScreen({ item: movie }));
+  }, trailerMovie);
+  await p2.locator('.detail-trailer-hint').last().waitFor({ state: 'visible' });
+  if (process.env.TV_TRAILER_HINT_SCREENSHOT) await p2.screenshot({ path: process.env.TV_TRAILER_HINT_SCREENSHOT });
+  await p2.keyboard.press('ArrowUp');
   const trailer = p2.locator('.screen.trailer');
   const help = trailer.getByText('OK: Play / pause', { exact: false });
   await help.waitFor({ state: 'visible' });
@@ -371,6 +377,16 @@ try {
   assert.equal(await help.isVisible(), false, 'Help stays hidden after playback begins');
   await p2.keyboard.press('Escape');
   await trailer.waitFor({ state: 'detached' });
+  await p2.locator('.detail-trailer-hint').last().waitFor({ state: 'visible' });
+  await p2.evaluate(async () => {
+    const { DetailScreen } = await import('/js/screens/detail.js');
+    const { push } = await import('/js/router.js');
+    push(DetailScreen({ item: { Id: 'no-trailer', Type: 'Movie', Name: 'No trailer' } }));
+  });
+  assert.equal(await p2.locator('.detail-trailer-hint').last().isVisible(), false);
+  await p2.keyboard.press('ArrowUp');
+  assert.equal(await p2.locator('.screen.trailer').count(), 0);
+
 
   assert.deepEqual(errors, [], 'page errors: ' + errors.join(' | '));
   await ctx2.close();

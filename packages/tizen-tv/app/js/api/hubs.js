@@ -1,3 +1,4 @@
+import * as movieRating from './movie-rating.js';
 // Catalog -> Movies / Series / Anime hub classification and row recipes.
 //
 // The server exposes every catalog as a view with CollectionType only
@@ -426,6 +427,10 @@ function filteredCatalog(v, keep) {
 
 /** Fetch one kind's catalog page, dropping anime from movie/series catalogs. */
 function plainOrFiltered(v) {
+  const minimum = movieRating.minimum();
+  if (v.kind === 'movie' && minimum) return movieRating.pager(function (p) {
+    return catalog(v, p);
+  }, function (it) { return notAnime(it) && movieRating.matches(it, minimum); });
   return v.kind === 'movie' || v.kind === 'series' ? filteredCatalog(v, notAnime) : function (p) {
     return catalog(v, { start: p && p.start, limit: (p && p.limit) || 24 });
   };
@@ -443,7 +448,7 @@ function newOfKind(kind) {
   if (!src) return Promise.resolve([]);
   const o = fresh ? { limit: 24 } : { limit: 40, minPremiereDate: sinceDays(90), sortBy: 'PremiereDate', sortOrder: 'Descending' };
   return catalog(src, o).then(function (r) {
-    const items = kind === 'anime' ? r.items : r.items.filter(notAnime);
+    const items = (kind === 'anime' ? r.items : r.items.filter(notAnime)).filter(function (it) { return movieRating.matches(it, movieRating.minimum()); });
     const cut = Date.now() - FRESH_DAYS * DAY;
     const recent = items.filter(function (it) {
       const t = Date.parse(it.PremiereDate);
@@ -511,7 +516,7 @@ function becauseRecipe(kind, badge) {
         const id = seed.Type === 'Episode' ? seed.SeriesId : seed.Id;
         const name = seed.Type === 'Episode' ? seed.SeriesName : seed.Name;
         return jf.similar(id, 24).then(function (r) {
-          const items = itemsOf(r);
+          const items = itemsOf(r).filter(function (it) { return movieRating.matches(it, movieRating.minimum()); });
           tagItems(items, kindOf(seed));
           return { items: items, total: items.length, title: name ? 'Because you watched ' + name : 'Because you watched' };
         });

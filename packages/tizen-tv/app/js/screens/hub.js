@@ -1,3 +1,4 @@
+import * as movieRating from '../api/movie-rating.js';
 // Adapted from samsucks (https://github.com/rfaile313/samsucks), GPL-3.0 (home layout, hero/row focus handling)
 // The browse page shared by Home and the Movies / Series / Anime hubs:
 // top bar, hero (spotlight or focused item), and lazily loaded rows built from
@@ -40,7 +41,7 @@ function add(parent, tag, cls) {
  */
 export function createBrowsePage(opts) {
   const tab = opts.tab;
-  let browseDiscovery = norwegian.signature();
+  let browseDiscovery = norwegian.signature() + ':' + movieRating.minimum();
   const cacheKey = 'page.' + tab;
   const el = h('div', 'screen browse browse-' + tab);
   el.dataset.screen = opts.name;
@@ -581,8 +582,11 @@ export function createBrowsePage(opts) {
     longEnter: true,
     onShow: function () {
       shown = true;
-      if (browseDiscovery !== norwegian.signature()) {
-        browseDiscovery = norwegian.signature();
+      if (browseDiscovery !== norwegian.signature() + ':' + movieRating.minimum()) {
+        browseDiscovery = norwegian.signature() + ':' + movieRating.minimum();
+        slots.forEach(function (s) { if (s.ui) s.ui.destroy(); });
+        slots = [];
+        focusSlot = null;
         boot();
       }
       ambience.restore();

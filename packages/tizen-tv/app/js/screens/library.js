@@ -1,3 +1,4 @@
+import * as movieRating from '../api/movie-rating.js';
 // Adapted from samsucks (https://github.com/rfaile313/samsucks), GPL-3.0
 // A whole catalog as a virtualized poster grid, loaded 100 titles at a time.
 // Yellow cycles the sort; opts.genre filters by a genre (shown as a chip).
@@ -46,6 +47,8 @@ export function LibraryScreen(args) {
   hint.innerHTML = '<i class="key-yellow"></i>Sort';
   const empty = add(el, 'div', 'browse-empty lib-empty');
 
+  let minimum = movieRating.minimum();
+  let ratingPage;
   let sortIndex = 0;
   let pages = {};      // page -> 'loading' | 'done'
   let items = [];
@@ -85,17 +88,18 @@ export function LibraryScreen(args) {
     pages[p] = 'loading';
     const gen = generation;
     const sort = SORTS[sortIndex];
-    jf.items({
+    const request = ratingPage ? ratingPage({ start: p * PAGE, limit: PAGE }).then(function (r) { return { Items: r.items, TotalRecordCount: r.total }; }) : jf.items({
       parentId: view.Id, startIndex: p * PAGE, limit: PAGE,
       sortBy: sort.sortBy, sortOrder: sort.sortOrder, genres: genre,
-    }).then(function (r) {
+    });
+    request.then(function (r) {
       if (!alive || gen !== generation) return;
       const got = hubs.tagItems((r && r.Items) || [], kind);
       for (let i = 0; i < got.length; i++) items[p * PAGE + i] = got[i];
       pages[p] = 'done';
-      if (p === 0) setText(empty, got.length ? '' : 'Nothing here yet.');
+      if (p === 0) setText(empty, got.length ? '' : (ratingPage ? 'No movies meet this rating. Change the minimum in Settings.' : 'Nothing here yet.'));
       const total = r && r.TotalRecordCount != null ? r.TotalRecordCount : p * PAGE + got.length;
-      setText(count, total + (total === 1 ? ' title' : ' titles'));
+      setText(count, ratingPage ? items.filter(Boolean).length + ' matching titles loaded' : total + (total === 1 ? ' title' : ' titles'));
       if (grid.total() !== total) grid.setTotal(total);
       else grid.refresh();
       if (p === 0) describe(grid.current());
@@ -112,7 +116,15 @@ export function LibraryScreen(args) {
     pages = {};
     items = [];
     warned = false;
-    setText(sortEl, 'Sorted by ' + SORTS[sortIndex].label);
+    const sort = SORTS[sortIndex];
+    const threshold = minimum;
+    ratingPage = kind === 'movie' && threshold ? movieRating.pager(function (p) {
+      return jf.items({ parentId: view.Id, startIndex: p.start, limit: p.limit,
+        sortBy: sort.sortBy, sortOrder: sort.sortOrder, genres: genre }).then(function (r) {
+        return { items: r.Items || [], total: r.TotalRecordCount == null ? (r.Items || []).length : r.TotalRecordCount };
+      });
+    }, function (it) { return movieRating.matches(it, threshold); }) : null;
+    setText(sortEl, 'Sorted by ' + SORTS[sortIndex].label + (ratingPage ? ' · ' + movieRating.label() : ''));
     grid.reset();
     setText(focusInfo, '');
     setText(empty, '');
@@ -123,7 +135,7 @@ export function LibraryScreen(args) {
   return {
     el: el,
     name: 'library',
-    onShow: function () { ambience.restore(); },
+    onShow: function () { ambience.restore(); if (minimum !== movieRating.minimum()) { minimum = movieRating.minimum(); reload(); } },
     onKey: function (action) {
       switch (action) {
         case 'left': grid.move(-1, 0); return true;

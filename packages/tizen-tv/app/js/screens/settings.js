@@ -2,6 +2,7 @@
 // Settings: one vertical list with cream-invert focus, scrolled by transform.
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import * as store from '../util/store.js';
+import * as movieRating from '../api/movie-rating.js';
 import * as norwegian from '../api/norwegian.js';
 import * as session from '../session.js';
 import * as jellyfin from '../api/jellyfin.js';
@@ -109,6 +110,14 @@ export function SettingsScreen() {
       label: 'Signed in as', value: function () { return pending === 'out' ? 'Press OK again to sign out' : (session.userName() || 'Unknown') + '  ·  Sign out'; },
       run: function () { confirmThen('out', function () { session.signOut(); nav.go('openConnect'); }); },
     });
+    head('Movies');
+    const stepRating = function (dx) {
+      movieRating.setMinimum(cycle(movieRating.CHOICES, movieRating.minimum(), dx));
+      hubs.clearBrowseCache();
+    };
+    defs.push({ label: 'Minimum movie rating', value: function () { return '‹  ' + movieRating.label() + '  ›'; },
+      left: function () { stepRating(-1); }, right: function () { stepRating(1); }, run: function () { stepRating(1); } });
+    defs.push({ label: 'Movie discovery', value: function () { return 'Unrated movies hidden when a minimum is set'; } });
     head('Norwegian shows');
     function saveDiscovery(key, value) { norwegian.set(key, value); hubs.clearBrowseCache(); }
     function discoveryChoice(key, title, choices) {

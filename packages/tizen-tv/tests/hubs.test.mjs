@@ -255,3 +255,18 @@ test('Continue watching waits for playback writes and returns one episode per se
   complete();
   assert.deepEqual((await pending).items.map(item => item.Id), ['recent']);
 });
+
+test('movie discovery applies saved minimum beyond sparse pages; series remain visible', async () => {
+  localStorage.setItem('atv.discovery.movieRating', '8');
+  try {
+    classify([V('Trending Movies', 'movies', 'rated-m', '/aiostreams/movie/rated'), V('Trending Series', 'tvshows', 'rated-s', '/aiostreams/series/rated')], {});
+    const films = Array.from({ length: 210 }, (_, i) => ({ Id: 'rated-' + i, Type: 'Movie', CommunityRating: i >= 200 ? 8 : 4 }));
+    serve(u => page(u.searchParams.get('ParentId') === 'rated-m' ? films : [show('unrated-show')], u));
+    const result = await recipesFor('movies').find(r => r.id === 'trending').fetch({ start: 0, limit: 24 });
+    assert.equal(result.items.length, 10);
+    assert.equal(result.total, 10);
+    assert.ok(result.items.every(it => it.CommunityRating >= 8));
+    const series = await recipesFor('series').find(r => r.id === 'trending').fetch({ start: 0, limit: 24 });
+    assert.equal(series.items[0].Id, 'unrated-show');
+  } finally { localStorage.removeItem('atv.discovery.movieRating'); }
+});

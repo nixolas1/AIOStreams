@@ -118,12 +118,19 @@ try {
   });
   await p2.waitForSelector('[data-screen="settings"]');
   async function downTo(label) {
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 18; i++) {
       if (await p2.locator('.set-row.focus .set-label').textContent() === label) return;
       await p2.keyboard.press('ArrowDown'); await p2.waitForTimeout(40);
     }
     throw new Error('Setting not found: ' + label);
   }
+  await downTo('Minimum movie rating');
+  assert.match(await p2.locator('.set-row.focus').textContent(), /Any rating/);
+  await p2.keyboard.press('ArrowRight');
+  await p2.waitForFunction(() => localStorage.getItem('atv.discovery.movieRating') === '1');
+  assert.match(await p2.locator('.set-row.focus').textContent(), /★ 1.0/);
+  await p2.keyboard.press('ArrowLeft');
+  await p2.waitForFunction(() => localStorage.getItem('atv.discovery.movieRating') === '0');
   await downTo('Episodes aired');
   assert.match(await p2.locator('.set-row.focus').textContent(), /This year/);
   if (process.env.TV_REGION_SCREENSHOT) await p2.screenshot({ path: process.env.TV_REGION_SCREENSHOT });
@@ -140,7 +147,7 @@ try {
   assert.ok(discoveryRequests.some(u => u.searchParams.get('Period') === 'month' && u.searchParams.get('Category') === 'drama' && u.searchParams.get('Source') === 'nrk' && u.searchParams.get('IncludeNews') === 'false'));
   if (process.env.TV_NORWEGIAN_HOME_SCREENSHOT) {
     for (let i = 0; i < 2; i++) { await p2.keyboard.press('ArrowDown'); await p2.waitForTimeout(40); }
-    for (let i = 0; i < 12; i++) { await p2.keyboard.press('ArrowUp'); await p2.waitForTimeout(40); }
+    for (let i = 0; i < 18; i++) { await p2.keyboard.press('ArrowUp'); await p2.waitForTimeout(40); }
     for (let i = 0; i < 10; i++) {
       const title = await p2.evaluate(() => { const el = document.querySelector('.row.active .row-title'); return el ? el.textContent : ''; });
       if (title.indexOf('Norske serier') === 0) break;

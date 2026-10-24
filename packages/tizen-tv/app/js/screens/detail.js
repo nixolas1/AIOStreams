@@ -140,12 +140,25 @@ export function DetailScreen(args) {
 
   // ---------- header ----------
 
+  // Measure the actual font after mounting; character counts cannot predict wrapping.
+  function fitTitle() {
+    if (!alive || !title.offsetWidth) return;
+    let size = 96;
+    title.style.fontSize = size + 'px';
+    while (size > 24 && title.offsetHeight > logoBox.clientHeight) {
+      size -= 2;
+      title.style.fontSize = size + 'px';
+    }
+  }
+  function scheduleTitleFit() { requestAnimationFrame(fitTitle); }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleTitleFit);
+
   let logoUrl = null;
   function setLogo(url) {
     if (url === logoUrl) return; // same art: its load event will not fire again
     logoUrl = url;
     logo.onload = function () { show(logo, true); show(title, false); };
-    logo.onerror = function () { show(logo, false); show(title, true); };
+    logo.onerror = function () { show(logo, false); show(title, true); scheduleTitleFit(); };
     if (!url) { show(logo, false); show(title, true); return; }
     show(logo, false);
     show(title, false);
@@ -156,6 +169,7 @@ export function DetailScreen(args) {
     const episode = item.Type === 'Episode';
     setText(title, episode ? item.SeriesName || item.Name || '' : item.Name || '');
     setLogo(imageFor(item, 'Logo', 640));
+    scheduleTitleFit();
     setText(sub, episode ? episodeLabel(item) + (item.Name ? '   ' + item.Name : '') : (item.Taglines && item.Taglines[0]) || '');
     // This server's series ChildCount is the episode total, not the season count.
     setText(meta, metaLine(isSeries() ? Object.assign({}, item, { ChildCount: seasonCount }) : item));
@@ -560,6 +574,7 @@ export function DetailScreen(args) {
     longEnter: true,
     el: el,
     onShow: function () {
+      scheduleTitleFit();
       if (shown) refresh();
       else load(false);
       shown = true;

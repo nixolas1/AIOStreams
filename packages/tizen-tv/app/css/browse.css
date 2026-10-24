@@ -34,7 +34,7 @@
 .hero-head { position: relative; height: 170px; width: 900px; }
 .hero-logo { position: absolute; left: 0; bottom: 0; display: block; max-width: 560px; max-height: 170px; object-fit: contain; object-position: left bottom; }
 .hero-title {
-  font: 700 96px/0.95 var(--display); letter-spacing: 0.005em; color: var(--text);
+  font: 700 96px/1.14 var(--display); letter-spacing: 0.005em; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 900px;
   position: absolute; left: 0; bottom: 0;
 }

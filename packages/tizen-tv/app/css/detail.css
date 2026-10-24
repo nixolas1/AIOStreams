@@ -33,14 +33,14 @@
 html.fast .detail-body { transition-duration: 140ms; }
 
 .detail-logobox {
-  position: absolute; left: 96px; top: 140px; width: 900px; height: 210px;
+  position: absolute; left: 96px; top: 110px; width: 1100px; height: 240px;
   display: flex; align-items: flex-end;
 }
 .detail-logo { display: block; max-width: 640px; max-height: 210px; object-fit: contain; }
 .detail-title {
-  width: 900px; max-height: 210px; overflow: hidden;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-  font: 700 108px/0.98 var(--display); letter-spacing: 0.01em; color: var(--text);
+  width: 1100px; padding: 0 0 10px; margin: 0;
+  display: block; overflow-wrap: break-word;
+  font: 700 96px/1.14 var(--display); letter-spacing: 0.01em; color: var(--text);
 }
 .detail-sub {
   position: absolute; left: 96px; top: 368px; width: 980px; height: 40px;

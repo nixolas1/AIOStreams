@@ -101,13 +101,55 @@ try {
   await page.goto(origin + '/');
   await page.waitForSelector('[data-screen="home"]', { timeout: 5000 });
 
+  // Real title wrapping with the bundled display font, including descenders.
+  let fixtureTitle = '';
+  const fixtureRoute = '**/Items/mov00a1b2c3?*';
+  await page.route(fixtureRoute, async route => {
+    const response = await route.fetch();
+    const data = await response.json();
+    data.Name = fixtureTitle;
+    if (data.ImageTags) delete data.ImageTags.Logo;
+    await route.fulfill({ json: data });
+  });
+  const titleCases = [
+    'Mushishi',
+    'The Laid-Off Cheat-Granting Mage Enjoys a Second Lease on Life',
+    'Magic Repo Man: Dumped by My Party, I’ll Cash In With a Cute Support Fairy to Become the Strongest!',
+    'Trying, growing, journeying — young mages enjoying a surprisingly extraordinary journey',
+  ];
+  for (let i = 0; i < titleCases.length; i++) {
+    fixtureTitle = titleCases[i];
+    await open('mov00a1b2c3');
+    await page.waitForFunction(name => document.querySelector('.detail:not(.hidden) .detail-title').textContent === name, fixtureTitle);
+    await page.evaluate(() => document.fonts.ready);
+    await settle(150);
+    const metrics = await page.evaluate(() => {
+      const title = document.querySelector('.detail:not(.hidden) .detail-title');
+      const box = title.parentElement.getBoundingClientRect();
+      const bounds = title.getBoundingClientRect();
+      const style = getComputedStyle(title);
+      return { top: bounds.top, bottom: bounds.bottom, boxTop: box.top, boxBottom: box.bottom,
+        size: parseFloat(style.fontSize), lineHeight: parseFloat(style.lineHeight), clamp: style.webkitLineClamp,
+        overflow: style.overflow, width: title.clientWidth, scrollWidth: title.scrollWidth };
+    });
+    assert.ok(metrics.top >= metrics.boxTop - 1 && metrics.bottom <= metrics.boxBottom + 1, JSON.stringify(metrics));
+    assert.ok(metrics.size >= 44, 'long titles remain readable');
+    assert.ok(metrics.lineHeight >= metrics.size * 1.1, 'room for descenders');
+    assert.equal(metrics.clamp, 'none');
+    assert.equal(metrics.overflow, 'visible');
+    assert.ok(metrics.scrollWidth <= metrics.width);
+    await page.screenshot({ path: path.join(shots, 'detail-title-' + i + '.png') });
+    await key('Escape');
+  }
+  await page.unroute(fixtureRoute);
+
   // ---------- movie detail ----------
   await open('mov00a1b2c3');
   await page.waitForSelector('[data-screen="detail"]:not(.hidden) .detail-btn', { timeout: 5000 });
   await page.waitForFunction(() => document.querySelector('.detail:not(.hidden) .detail-meta').textContent.length > 0);
   await settle(700);
   let labels = await texts('.detail:not(.hidden) .detail-btn');
-  assert.deepEqual(labels, ['Play', 'Sources', 'Trailer', 'Watchlist', 'Mark watched'], 'buttons: ' + labels);
+  assert.deepEqual(labels, ['Play', 'Sources', 'Trailer', 'Add to watchlist', 'Mark watched'], 'buttons: ' + labels);
   assert.equal(await text('.detail:not(.hidden) .detail-title'), 'The Last Meridian');
   assert.ok((await text('.detail:not(.hidden) .detail-summary')).length > 50, 'summary');
   assert.equal(await page.evaluate(() => document.querySelector('.detail:not(.hidden) .detail-btn.focus').textContent), 'Play');
@@ -144,11 +186,11 @@ try {
 
   // Watchlist toggles through the mock server.
   await key('ArrowRight', 3);
-  assert.equal(await text('.detail:not(.hidden) .detail-btn.focus'), 'Watchlist');
+  assert.equal(await text('.detail:not(.hidden) .detail-btn.focus'), 'Add to watchlist');
   await key('Enter');
   await page.waitForFunction(() => /In watchlist/.test(document.querySelector('.detail:not(.hidden) .detail-btn.focus').textContent));
   await key('Enter');
-  await page.waitForFunction(() => document.querySelector('.detail:not(.hidden) .detail-btn.focus').textContent === 'Watchlist');
+  await page.waitForFunction(() => document.querySelector('.detail:not(.hidden) .detail-btn.focus').textContent === 'Add to watchlist');
   await key('ArrowLeft', 2);
 
   // Down moves into "More like this" and slides the body up; Up/Back return.

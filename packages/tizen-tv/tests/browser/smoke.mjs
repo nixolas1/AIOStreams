@@ -117,6 +117,12 @@ try {
     await p2.keyboard.press('ArrowRight');
     await p2.locator('[data-tab="' + tab + '"] .nav-item.current.focus').waitFor({ state: 'visible' });
     assert.equal(await p2.locator('.screen.browse').count(), 1, 'Tabs replace rather than stack');
+    if (tab === 'anime') {
+      await p2.waitForFunction(() => document.querySelector('.browse-anime').textContent.includes('AniList 75/100'));
+      assert.ok(await p2.locator('.browse-anime').textContent().then(t => t.includes('New anime')));
+      if (process.env.TV_ANIME_SCREENSHOT) await p2.screenshot({ path: process.env.TV_ANIME_SCREENSHOT });
+    }
+
   }
   await p2.keyboard.press('ArrowRight');
   assert.equal(await p2.locator('[data-screen="search"]').count(), 0, 'Search still requires OK');

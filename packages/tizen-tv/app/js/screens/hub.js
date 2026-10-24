@@ -1,3 +1,4 @@
+import * as animeDiscovery from '../api/anime-discovery.js';
 import * as movieRating from '../api/movie-rating.js';
 // Adapted from samsucks (https://github.com/rfaile313/samsucks), GPL-3.0 (home layout, hero/row focus handling)
 // The browse page shared by Home and the Movies / Series / Anime hubs:
@@ -27,7 +28,7 @@ const AHEAD = 4;            // rows loaded beyond the focused one
 const SPOT_MS = 9000;
 const STALE_MS = 30000;
 const CACHE_ROWS = 12;      // items per row kept in the first-paint cache
-const CACHE_VERSION = 3;   // 3: series rows no longer hold anime
+const CACHE_VERSION = 4;   // 4: true seasonal anime rows replace broad catalogs
 
 function add(parent, tag, cls) {
   const e = h(tag, cls);
@@ -41,7 +42,7 @@ function add(parent, tag, cls) {
  */
 export function createBrowsePage(opts) {
   const tab = opts.tab;
-  let browseDiscovery = norwegian.signature() + ':' + movieRating.signature();
+  let browseDiscovery = norwegian.signature() + ':' + movieRating.signature() + ':' + animeDiscovery.signature();
   const cacheKey = 'page.' + tab;
   const el = h('div', 'screen browse browse-' + tab);
   el.dataset.screen = opts.name;
@@ -100,7 +101,7 @@ export function createBrowsePage(opts) {
     heroItem = item;
     const episode = item.Type === 'Episode';
     setText(heroTitle, episode ? (item.SeriesName || item.Name) : item.Name);
-    setText(heroMeta, (episode && item.Name ? item.Name + '  ·  ' : '') + metaLine(item));
+    setText(heroMeta, (episode && item.Name ? item.Name + '  ·  ' : '') + (item.AnimeDiscoveryLabel || metaLine(item)));
     setText(heroSummary, item.Overview || '');
     const genres = (item.Genres || []).slice(0, 3);
     const gk = genres.join('|');
@@ -426,6 +427,7 @@ export function createBrowsePage(opts) {
     if (!c || c.v !== CACHE_VERSION || !c.rows) return false;
     c.rows.forEach(function (r) {
       if (r.id.indexOf('regional-shows-') === 0) return;
+      if (r.id.indexOf('seasonal-anime-') === 0 && r.id.indexOf(animeDiscovery.signature()) < 0) return;
       if (r.id.indexOf('norwegian-shows-') === 0 && (!norwegian.enabled() || r.id !== norwegian.rowId())) return;
       const rec = { id: r.id, title: r.title, tile: r.tile, badge: r.badge, spotlight: r.spotlight, chips: !!r.chips };
       const s = { id: r.id, recipe: rec, ui: null, state: 'cached', total: 0, exhausted: true };
@@ -583,8 +585,8 @@ export function createBrowsePage(opts) {
     onShow: function () {
       shown = true;
       syncZone();
-      if (browseDiscovery !== norwegian.signature() + ':' + movieRating.signature()) {
-        browseDiscovery = norwegian.signature() + ':' + movieRating.signature();
+      if (browseDiscovery !== norwegian.signature() + ':' + movieRating.signature() + ':' + animeDiscovery.signature()) {
+        browseDiscovery = norwegian.signature() + ':' + movieRating.signature() + ':' + animeDiscovery.signature();
         slots.forEach(function (s) { if (s.ui) s.ui.destroy(); });
         slots = [];
         focusSlot = null;

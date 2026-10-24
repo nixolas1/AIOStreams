@@ -1,3 +1,4 @@
+import * as animeDiscovery from './anime-discovery.js';
 import * as movieRating from './movie-rating.js';
 // Catalog -> Movies / Series / Anime hub classification and row recipes.
 //
@@ -589,10 +590,24 @@ export function norwegianRecipe() {
   };
 }
 
+export function animeRecipes() {
+  const o = animeDiscovery.options();
+  return animeDiscovery.ROWS.map(function (entry, index) {
+    return { id: 'seasonal-anime-' + entry[0] + '-' + animeDiscovery.signature(),
+      title: entry[1] + ' · ' + animeDiscovery.season(), tile: 'poster', spotlight: index === 0 ? 5 : 0,
+      fetch: function () {
+        return client.get('/Discover/SeasonalAnime', { Row: entry[0], Sort: o.sort, Minimum: o.minimum }).then(function (r) {
+          return { items: tagItems(r.Items || [], 'anime'), total: r.TotalRecordCount || 0 };
+        });
+      } };
+  });
+}
+
 /** Ordered row recipes for a hub ('movies'|'series'|'anime'). */
 export function recipesFor(kindIn) {
   const kind = normKind(kindIn);
   if (kind === 'library') return libraryRecipes();
+  if (kind === 'anime') return [resumeRecipe(kind, false)].concat(animeRecipes(), [favoritesRecipe(kind, false), nextUpRecipe(kind, false), becauseRecipe(kind, false)]);
   const vs = viewsFor(kind);
   const used = {};
   const rows = [];
@@ -670,8 +685,9 @@ export function homeRecipes() {
   if (tm) { const r = viewRecipe(tm, 'trending-movies', 'Trending movies', 3); rows.push(r); }
   const ts = bestOf('series', ['trending', 'popular']);
   if (ts) { const r = viewRecipe(ts, 'trending-series', 'Trending series', 2); rows.push(r); }
-  const an = bestOf('anime', ['new', 'trending', 'popular']);
-  if (an) rows.push(viewRecipe(an, 'airing-anime', 'Airing anime'));
+  const animeRow = animeRecipes()[0];
+  animeRow.spotlight = 0;
+  rows.push(animeRow);
   rows.push(becauseRecipe(null, true));
   if (!rows.some(function (r) { return r.spotlight; })) {
     for (let i = 0; i < rows.length; i++) if (rows[i].paged) { rows[i].spotlight = 5; break; }
@@ -684,7 +700,7 @@ export function homeRecipes() {
 /** Keep only fields the browse screens render (localStorage first paint). */
 export function slim(it) {
   const o = {
-    Id: it.Id, Name: it.Name, Type: it.Type, _kind: it._kind,
+    Id: it.Id, Name: it.Name, Type: it.Type, _kind: it._kind, AnimeDiscoveryLabel: it.AnimeDiscoveryLabel,
     ProductionYear: it.ProductionYear, OfficialRating: it.OfficialRating, CommunityRating: it.CommunityRating,
     RunTimeTicks: it.RunTimeTicks, ChildCount: it.ChildCount, PremiereDate: it.PremiereDate,
     SeriesId: it.SeriesId, SeriesName: it.SeriesName, SeriesPrimaryImageTag: it.SeriesPrimaryImageTag,

@@ -232,6 +232,7 @@ export function createServer() {
     }
     if (p === '/Users/Me') return send(user);
     if (p === '/UserViews') return send(list(catalog.views));
+    if (p === '/Discover/SeasonalAnime') return send(list(allTitles().filter((x) => /^ani/.test(x.Id)).slice(0, 20).map((x) => ({ ...x, AnimeDiscoveryLabel: 'AniList 75/100 · 21.3k users listed · Debut · 12 episodes' }))));
     if (p === '/Discover/NorwegianShows') return send(list(allTitles().filter((x) => x.Type === 'Series').slice(q.source === 'hbo' ? 10000 : 0, 20)));
     if (p === '/Discover/RegionalShows') return send(list(allTitles().filter((x) => x.Type === 'Series').slice(q.country === 'NO' ? 0 : 3, q.country === 'NO' ? 10 : 13)));
     if (p === '/UserItems/Resume') return send(list(q.parentid ? [] : home.resume.filter((r) => !cleared.has(r.Id)).map(withState)));

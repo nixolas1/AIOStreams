@@ -74,18 +74,18 @@ test('recipesFor movies order', () => {
   assert.ok(!ids.includes('fresh'));
 });
 
-test('recipesFor anime has airing row and no-new fallback', () => {
+test('anime discovery leads with real seasonal debuts, not broad catalogs', () => {
   classify([V('Anime Kitsu Trending', 'tvshows')], {});
   const ids = recipesFor('anime').map((r) => r.id);
-  assert.ok(ids.includes('fresh'));
-  assert.ok(ids.includes('new'));
-  assert.equal(recipesFor('anime').find((r) => r.id === 'fresh').title, 'Airing now');
+  assert.ok(ids[1].startsWith('seasonal-anime-debuts-'));
+  assert.equal(ids.includes('trending'), false);
+  assert.equal(ids.includes('new'), false);
 });
 
 test('homeRecipes mixes kinds with badges', () => {
   classify([V('Trending Movies', 'movies'), V('Trending Series', 'tvshows'), V('Anime Kitsu Trending', 'tvshows')], {});
   const rs = homeRecipes();
-  assert.deepEqual(rs.map((r) => r.id), ['resume', 'nextup', 'mylist', 'new-week', 'trending-movies', 'trending-series', 'airing-anime', 'because']);
+  assert.deepEqual(rs.map((r) => r.id.startsWith('seasonal-anime-debuts-') ? 'airing-anime' : r.id), ['resume', 'nextup', 'mylist', 'new-week', 'trending-movies', 'trending-series', 'airing-anime', 'because']);
   assert.ok(rs[0].badge && rs[0].tile === 'wide');
   assert.equal(rs[2].badge, true);
   assert.equal(rs[4].badge, false);

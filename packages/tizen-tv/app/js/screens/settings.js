@@ -1,3 +1,4 @@
+import * as animeDiscovery from '../api/anime-discovery.js';
 // Adapted from samsucks (https://github.com/rfaile313/samsucks), GPL-3.0 (settings list and focus behaviour)
 // Settings: one vertical list with cream-invert focus, scrolled by transform.
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
@@ -123,6 +124,18 @@ export function SettingsScreen() {
     };
     defs.push({ label: 'Include unrated movies', value: function () { return movieRating.includeUnrated() ? 'On' : 'Off'; },
       left: toggleUnrated, right: toggleUnrated, run: toggleUnrated });
+    head('Seasonal anime');
+    function animeChoice(key, title, choices) {
+      const step = function (dx) {
+        animeDiscovery.set(key, cycle(choices.map(function (x) { return x[0]; }), animeDiscovery.options()[key], dx));
+        hubs.clearBrowseCache();
+      };
+      defs.push({ label: title, value: function () { return '‹  ' + norwegian.label(choices, animeDiscovery.options()[key]) + '  ›'; },
+        left: function () { step(-1); }, right: function () { step(1); }, run: function () { step(1); } });
+    }
+    animeChoice('sort', 'Seasonal anime order', animeDiscovery.SORTS);
+    animeChoice('minimum', 'Minimum AniList score', animeDiscovery.MINIMUMS);
+    defs.push({ label: 'New anime', value: function () { return animeDiscovery.season() + ' · No prequels · Unrated premieres included'; } });
     head('Norwegian shows');
     function saveDiscovery(key, value) { norwegian.set(key, value); hubs.clearBrowseCache(); }
     function discoveryChoice(key, title, choices) {

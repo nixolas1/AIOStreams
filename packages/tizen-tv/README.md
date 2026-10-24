@@ -106,3 +106,26 @@ Deployment requires both the server extension and widget update. Validate with t
 TV legacy check/unit tests/Chromium smoke, core/server TypeScript builds, and focused
 Norwegian discovery tests. Browser fixtures remain synthetic. Physical TV rendering
 is a separate check, and each TV install requires the owner's explicit approval.
+
+### Seasonal anime discovery
+
+Anime leads with current calendar-season debuts (AniList TV/ONA entries with no
+anime prequel), followed by fantasy/magic, named returning favorites, quieter
+fantasy, and other sequels. Unreleased entries and other seasons are excluded;
+empty rows stay hidden. Anthology/standalone entries without a prequel can appear
+as debuts. Favorite franchise matches come from the owner's requested list in
+`seasonal-anime.ts`, including English and romanized titles.
+
+Settings → Seasonal anime selects trending activity (default), number of AniList
+users listing a title, score, or premiere date. Scores are explicitly AniList
+/100, never presented as IMDb. Minimum scores retain unrated premieres. Rows show
+up to 50 matches; the full season is fetched before filtering, cached for 15
+minutes, and shared between requests. No account/history is sent to AniList.
+The authenticated `/Discover/SeasonalAnime` backend endpoint is required; failures
+use the normal retry UI, without substituting all-time catalogs. Current-season
+returns require a separate season entry; continuous shows from older seasons
+are intentionally excluded. Existing catalog search remains available.
+
+Validation covers seasonal exclusions, sequel separation, scoring, request/cache
+identity and a synthetic 1920×1080 Chromium screen. This does not verify playback
+or the appearance on a physical TV.

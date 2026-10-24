@@ -1,3 +1,4 @@
+import { seasonalAnime, selectAnime, animePreview, animeLabel } from './seasonal-anime.js';
 import { Router, type Request, type Response } from 'express';
 import {
   norwegianShowOptions,
@@ -78,6 +79,21 @@ import { metahubPoster } from './images.js';
 import { getMeta } from './resolve.js';
 
 const router: Router = Router({ mergeParams: true });
+
+// Season entries retain their own MAL/AniList identity for detail and playback resolution.
+router.get('/Discover/SeasonalAnime', jf(async (req, res, ctx) => {
+  const row = qs(req, 'Row') || 'debuts';
+  const sort = qs(req, 'Sort') || 'trending';
+  const minimum = Number(qs(req, 'Minimum') || 0);
+  if (!['debuts', 'fantasy', 'quiet', 'returning', 'sequels'].includes(row) ||
+      !['trending', 'popular', 'rating', 'newest'].includes(sort) || ![0, 60, 70, 80].includes(minimum)) {
+    res.status(400).json({ error: 'Invalid seasonal anime filters' }); return;
+  }
+  const selected = selectAnime(await seasonalAnime(), row, sort, minimum).slice(0, 50);
+  const items = await itemsFromPreviews(ctx, selected.map(animePreview));
+  const decorated = items.map((item, i) => ({ ...item, AnimeDiscoveryLabel: animeLabel(selected[i]) }));
+  send(req, res, decorated, decorated.length, 0);
+}));
 
 // Authenticated, server-side TMDB credentials; no location lookup or client API key.
 router.get(

@@ -43,7 +43,7 @@ not return true, so a long press never feels broken elsewhere.
   `setScreenSaver(on)`, `isUhdPanel()`, `isTizen()` (all safe on desktop).
 - `nav.js`: `register(name, fn)`, `go(name, ...args)`, `has(name)`. Names (registered in `app.js`):
   `openItem(item, {from}?)` -> Detail, `playItem(item, opts)` -> Player, `openLibrary(view, opts)` -> Library,
-  `openHub(kind)` -> Hub (`'movies'|'series'|'anime'`), `openSearch()`, `openSettings()`,
+  `openHub(kind, {focusNav}?)` -> Hub (`'movies'|'series'|'anime'`), `openSearch()`, `openSettings()`,
   `openSources(item)`, `openConnect()` (resets the stack to Connect).
   Screens receive `{item, from}`, `{item, opts}`, `{view, opts}`, `{kind}`, `{}`, `{}`, `{item}`, `{}`.
 - `session.js`: `normalizeServerUrl(s)`, `getBase()`, `setBase(s)` (normalizes; changing server drops

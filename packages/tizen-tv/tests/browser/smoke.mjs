@@ -109,6 +109,25 @@ try {
 
   await p2.waitForFunction(() => !document.getElementById('splash'));
 
+  // Moving across page tabs selects immediately and keeps focus in the menu.
+  await p2.keyboard.press('ArrowUp');
+  await p2.keyboard.press('ArrowUp');
+  await p2.locator('.nav-item.focus').waitFor({ state: 'visible' });
+  for (const tab of ['movies', 'series', 'anime', 'library']) {
+    await p2.keyboard.press('ArrowRight');
+    await p2.locator('[data-tab="' + tab + '"] .nav-item.current.focus').waitFor({ state: 'visible' });
+    assert.equal(await p2.locator('.screen.browse').count(), 1, 'Tabs replace rather than stack');
+  }
+  await p2.keyboard.press('ArrowRight');
+  assert.equal(await p2.locator('[data-screen="search"]').count(), 0, 'Search still requires OK');
+  await p2.keyboard.press('ArrowLeft');
+  for (const tab of ['anime', 'series', 'movies', 'home']) {
+    await p2.keyboard.press('ArrowLeft');
+    await p2.locator('[data-tab="' + tab + '"] .nav-item.current.focus').waitFor({ state: 'visible' });
+  }
+  await p2.keyboard.press('ArrowDown');
+  await p2.waitForFunction(() => !document.querySelector('.nav-item.focus'));
+
   // Norwegian discovery: real remote keys, filter requests, Back refresh, persistence and Off.
   const discoveryRequests = [];
   p2.on('request', (r) => { if (r.url().includes('/Discover/NorwegianShows')) discoveryRequests.push(new URL(r.url())); });

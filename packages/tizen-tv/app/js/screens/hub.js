@@ -73,7 +73,7 @@ export function createBrowsePage(opts) {
   el.appendChild(confirm.el);
 
   let slots = [];          // {id, recipe, ui, state, count}
-  let zone = 'rows';
+  let zone = opts.focusNav ? 'nav' : 'rows';
   let rowIndex = 0;
   let focusSlot = null;
   let moved = false;       // any focus move since the page opened
@@ -582,6 +582,7 @@ export function createBrowsePage(opts) {
     longEnter: true,
     onShow: function () {
       shown = true;
+      syncZone();
       if (browseDiscovery !== norwegian.signature() + ':' + movieRating.minimum()) {
         browseDiscovery = norwegian.signature() + ':' + movieRating.minimum();
         slots.forEach(function (s) { if (s.ui) s.ui.destroy(); });
@@ -627,7 +628,7 @@ export function createBrowsePage(opts) {
 export function HubScreen(args) {
   const kind = (args && args.kind) || 'movies';
   return createBrowsePage({
-    tab: kind, name: 'hub', kind: kind,
+    tab: kind, name: 'hub', kind: kind, focusNav: !!(args && args.focusNav),
     build: function () { return hubs.recipesFor(kind); },
   });
 }

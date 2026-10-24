@@ -2,8 +2,8 @@
 // Settings icons, signed-in user at the right.
 //
 // createTopbar({current}) -> {el, focus(i), move(dx) -> bool, index(), setActive(bool), select(), current}
-// `current` is 'home' | 'movies' | 'series' | 'anime' | 'library'. select() on another tab
-// calls nav.go('openHub', id); Search/Settings call nav.go('openSearch'/'openSettings').
+// `current` is 'home' | 'movies' | 'series' | 'anime' | 'library'. Moving focus to a tab
+// opens it and keeps menu focus. Search/Settings open only through select().
 import { h, toggleClass } from '../util/dom.js';
 import * as nav from '../nav.js';
 import * as session from '../session.js';
@@ -69,6 +69,8 @@ export function createTopbar(o) {
       if (next < 0 || next >= entries.length) return false;
       idx = next;
       render();
+      const entry = entries[idx];
+      if (active && entry.tab && entry.id !== current) nav.go('openHub', entry.id, { focusNav: true });
       return true;
     },
     index: function () { return idx; },

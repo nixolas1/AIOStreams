@@ -33,8 +33,9 @@ function wireNav() {
   nav.register('playItem', function (item, opts) { return router.push(PlayerScreen({ item: item, opts: opts || {} })); });
   nav.register('openLibrary', function (view, opts) { return router.push(LibraryScreen({ view: view, opts: opts || {} })); });
   // Home/Movies/Series/Anime are tabs: switching replaces the tab screen instead of stacking.
-  nav.register('openHub', function (kind) {
-    const screen = kind === 'home' ? HomeScreen({}) : HubScreen({ kind: kind });
+  nav.register('openHub', function (kind, opts) {
+    const focusNav = !!(opts && opts.focusNav);
+    const screen = kind === 'home' ? HomeScreen({ focusNav: focusNav }) : HubScreen({ kind: kind, focusNav: focusNav });
     const top = router.top();
     return top && top.tab ? router.replace(screen) : router.push(screen);
   });

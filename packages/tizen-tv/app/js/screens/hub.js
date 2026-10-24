@@ -41,7 +41,7 @@ function add(parent, tag, cls) {
  */
 export function createBrowsePage(opts) {
   const tab = opts.tab;
-  let browseDiscovery = norwegian.signature() + ':' + movieRating.minimum();
+  let browseDiscovery = norwegian.signature() + ':' + movieRating.signature();
   const cacheKey = 'page.' + tab;
   const el = h('div', 'screen browse browse-' + tab);
   el.dataset.screen = opts.name;
@@ -583,8 +583,8 @@ export function createBrowsePage(opts) {
     onShow: function () {
       shown = true;
       syncZone();
-      if (browseDiscovery !== norwegian.signature() + ':' + movieRating.minimum()) {
-        browseDiscovery = norwegian.signature() + ':' + movieRating.minimum();
+      if (browseDiscovery !== norwegian.signature() + ':' + movieRating.signature()) {
+        browseDiscovery = norwegian.signature() + ':' + movieRating.signature();
         slots.forEach(function (s) { if (s.ui) s.ui.destroy(); });
         slots = [];
         focusSlot = null;

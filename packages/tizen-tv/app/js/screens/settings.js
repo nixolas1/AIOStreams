@@ -117,7 +117,12 @@ export function SettingsScreen() {
     };
     defs.push({ label: 'Minimum movie rating', value: function () { return '‹  ' + movieRating.label() + '  ›'; },
       left: function () { stepRating(-1); }, right: function () { stepRating(1); }, run: function () { stepRating(1); } });
-    defs.push({ label: 'Movie discovery', value: function () { return 'Unrated movies hidden when a minimum is set'; } });
+    const toggleUnrated = function () {
+      movieRating.setIncludeUnrated(!movieRating.includeUnrated());
+      hubs.clearBrowseCache();
+    };
+    defs.push({ label: 'Include unrated movies', value: function () { return movieRating.includeUnrated() ? 'On' : 'Off'; },
+      left: toggleUnrated, right: toggleUnrated, run: toggleUnrated });
     head('Norwegian shows');
     function saveDiscovery(key, value) { norwegian.set(key, value); hubs.clearBrowseCache(); }
     function discoveryChoice(key, title, choices) {

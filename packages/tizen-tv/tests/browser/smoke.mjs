@@ -150,6 +150,13 @@ try {
   assert.match(await p2.locator('.set-row.focus').textContent(), /★ 1.0/);
   await p2.keyboard.press('ArrowLeft');
   await p2.waitForFunction(() => localStorage.getItem('atv.discovery.movieRating') === '0');
+  await downTo('Include unrated movies');
+  assert.match(await p2.locator('.set-row.focus').textContent(), /Off/);
+  await p2.keyboard.press('Enter');
+  await p2.waitForFunction(() => localStorage.getItem('atv.discovery.includeUnratedMovies') === 'true');
+  assert.match(await p2.locator('.set-row.focus').textContent(), /On/);
+  await p2.keyboard.press('ArrowLeft');
+  await p2.waitForFunction(() => localStorage.getItem('atv.discovery.includeUnratedMovies') === 'false');
   await downTo('Episodes aired');
   assert.match(await p2.locator('.set-row.focus').textContent(), /This year/);
   if (process.env.TV_REGION_SCREENSHOT) await p2.screenshot({ path: process.env.TV_REGION_SCREENSHOT });
@@ -392,7 +399,7 @@ try {
   assert.deepEqual(frameBounds, { x: 0, y: 0, width: 1920, height: 1080 });
   await p2.waitForFunction(() => {
     const frame = document.querySelector('.trailer iframe');
-    return frame.contentDocument && frame.contentDocument.body.textContent.includes('Trailer fixture');
+    return frame.contentDocument && frame.contentDocument.body && frame.contentDocument.body.textContent.includes('Trailer fixture');
   });
   await p2.evaluate(() => document.querySelector('.trailer iframe').contentWindow.eval(
     "parent.postMessage({type:'tv-trailer',state:'playing'}, location.origin)"));

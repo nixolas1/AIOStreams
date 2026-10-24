@@ -428,9 +428,10 @@ function filteredCatalog(v, keep) {
 /** Fetch one kind's catalog page, dropping anime from movie/series catalogs. */
 function plainOrFiltered(v) {
   const minimum = movieRating.minimum();
+  const unrated = movieRating.includeUnrated();
   if (v.kind === 'movie' && minimum) return movieRating.pager(function (p) {
     return catalog(v, p);
-  }, function (it) { return notAnime(it) && movieRating.matches(it, minimum); });
+  }, function (it) { return notAnime(it) && movieRating.matches(it, minimum, unrated); });
   return v.kind === 'movie' || v.kind === 'series' ? filteredCatalog(v, notAnime) : function (p) {
     return catalog(v, { start: p && p.start, limit: (p && p.limit) || 24 });
   };

@@ -48,6 +48,7 @@ export function LibraryScreen(args) {
   const empty = add(el, 'div', 'browse-empty lib-empty');
 
   let minimum = movieRating.minimum();
+  let ratingSignature = movieRating.signature();
   let ratingPage;
   let sortIndex = 0;
   let pages = {};      // page -> 'loading' | 'done'
@@ -118,12 +119,13 @@ export function LibraryScreen(args) {
     warned = false;
     const sort = SORTS[sortIndex];
     const threshold = minimum;
+    const unrated = movieRating.includeUnrated();
     ratingPage = kind === 'movie' && threshold ? movieRating.pager(function (p) {
       return jf.items({ parentId: view.Id, startIndex: p.start, limit: p.limit,
         sortBy: sort.sortBy, sortOrder: sort.sortOrder, genres: genre }).then(function (r) {
         return { items: r.Items || [], total: r.TotalRecordCount == null ? (r.Items || []).length : r.TotalRecordCount };
       });
-    }, function (it) { return movieRating.matches(it, threshold); }) : null;
+    }, function (it) { return movieRating.matches(it, threshold, unrated); }) : null;
     setText(sortEl, 'Sorted by ' + SORTS[sortIndex].label + (ratingPage ? ' · ' + movieRating.label() : ''));
     grid.reset();
     setText(focusInfo, '');
@@ -135,7 +137,7 @@ export function LibraryScreen(args) {
   return {
     el: el,
     name: 'library',
-    onShow: function () { ambience.restore(); if (minimum !== movieRating.minimum()) { minimum = movieRating.minimum(); reload(); } },
+    onShow: function () { ambience.restore(); if (ratingSignature !== movieRating.signature()) { ratingSignature = movieRating.signature(); minimum = movieRating.minimum(); reload(); } },
     onKey: function (action) {
       switch (action) {
         case 'left': grid.move(-1, 0); return true;

@@ -26,3 +26,22 @@ test('sparse pages retain later matches, ordered concurrent requests and exact f
   assert.equal(second.total, 90);
   assert.equal(second.items.length, 66);
 });
+
+
+test('unrated preference persists and never admits rated movies below the minimum', () => {
+  const before = rating.signature();
+  rating.setIncludeUnrated(true);
+  try {
+    assert.equal(rating.includeUnrated(), true);
+    assert.notEqual(rating.signature(), before);
+    assert.equal(JSON.parse(localStorage.getItem('atv.discovery.includeUnratedMovies')), true);
+    for (const value of [undefined, null, '', 0, 'N/A']) {
+      assert.equal(rating.matches({ Type: 'Movie', CommunityRating: value }, 7), true);
+      assert.equal(rating.matches({ Type: 'Movie', CommunityRating: value }, 7, false), false);
+    }
+    assert.equal(rating.matches({ Type: 'Movie', CommunityRating: 6.9 }, 7), false);
+    assert.equal(rating.matches({ Type: 'Movie', CommunityRating: 7 }, 7), true);
+  } finally { rating.setIncludeUnrated(false); }
+  assert.equal(rating.matches({ Type: 'Movie' }, 7), false);
+  assert.equal(rating.matches({ Type: 'Movie' }, 0), true);
+});

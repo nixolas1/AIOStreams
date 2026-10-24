@@ -7,10 +7,14 @@ export function minimum() {
 }
 export function setMinimum(value) { store.set('discovery.movieRating', CHOICES.indexOf(value) >= 0 ? value : 0); }
 export function label() { return minimum() ? '★ ' + minimum().toFixed(1) + '+ / 10' : 'Any rating'; }
-export function matches(item, threshold) {
+export function includeUnrated() { return store.get('discovery.includeUnratedMovies', false) === true; }
+export function setIncludeUnrated(value) { store.set('discovery.includeUnratedMovies', value === true); }
+export function signature() { return minimum() + ':' + includeUnrated(); }
+export function matches(item, threshold, unrated) {
   if (!threshold || item.Type !== 'Movie') return true;
   const rating = Number(item.CommunityRating);
-  return isFinite(rating) && rating >= threshold && rating <= 10;
+  if (!isFinite(rating) || rating <= 0 || rating > 10) return unrated == null ? includeUnrated() : unrated;
+  return rating >= threshold;
 }
 
 // Keep a raw server cursor separate from the displayed index, including sparse pages.

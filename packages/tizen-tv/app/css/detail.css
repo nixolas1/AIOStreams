@@ -272,3 +272,9 @@ video.av-object { background: #000; object-fit: contain; }
   border-top: 2px solid currentColor; border-left: 2px solid currentColor;
   transform: translateY(3px) rotate(45deg);
 }
+
+/* Minimal trailer loading indicator, centered in the full-screen player. */
+.trailer-spinner {
+  left: 936px; top: 516px; width: 48px; height: 48px;
+  border-width: 3px; border-radius: 50%; border-top-color: var(--text);
+}

@@ -381,6 +381,13 @@ try {
   const trailer = p2.locator('.screen.trailer');
   const help = trailer.getByText('OK: Play / pause', { exact: false });
   await help.waitFor({ state: 'visible' });
+  await trailer.locator('.trailer-spinner.on').waitFor({ state: 'visible' });
+  assert.equal(await trailer.getByText('Loading trailer…', { exact: true }).count(), 0);
+  const spinnerCenter = await trailer.locator('.trailer-spinner').evaluate(el => ({
+    x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2,
+  }));
+  assert.deepEqual(spinnerCenter, { x: 960, y: 540 });
+  if (process.env.TV_TRAILER_SPINNER_SCREENSHOT) await p2.screenshot({ path: process.env.TV_TRAILER_SPINNER_SCREENSHOT });
   const frameBounds = await trailer.locator('iframe').boundingBox();
   assert.deepEqual(frameBounds, { x: 0, y: 0, width: 1920, height: 1080 });
   await p2.waitForFunction(() => {
@@ -390,6 +397,7 @@ try {
   await p2.evaluate(() => document.querySelector('.trailer iframe').contentWindow.eval(
     "parent.postMessage({type:'tv-trailer',state:'playing'}, location.origin)"));
   await help.waitFor({ state: 'hidden' });
+  await trailer.locator('.trailer-spinner').waitFor({ state: 'hidden' });
   assert.equal(await trailer.getByText('Loading trailer…', { exact: true }).count(), 0);
   await p2.evaluate(() => document.querySelector('.trailer iframe').contentWindow.eval(
     "parent.postMessage({type:'tv-trailer',state:'paused'}, location.origin)"));

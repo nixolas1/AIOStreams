@@ -265,7 +265,10 @@ video.av-object { background: #000; object-fit: contain; }
 .detail-trailer-hint {
   position: absolute; top: 28px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; padding: 10px 22px;
-  border-radius: 28px; background: rgba(0, 0, 0, 0.6);
   color: var(--text); font-size: 24px; pointer-events: none;
 }
-.detail-trailer-arrow { font-size: 32px; line-height: 1; margin-right: 12px; }
+.detail-trailer-chevron {
+  width: 12px; height: 12px; margin-right: 14px;
+  border-top: 2px solid currentColor; border-left: 2px solid currentColor;
+  transform: translateY(3px) rotate(45deg);
+}

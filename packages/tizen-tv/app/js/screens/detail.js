@@ -97,8 +97,8 @@ export function DetailScreen(args) {
   el.appendChild(scrimB);
   el.appendChild(body);
   const trailerHint = h('div', 'detail-trailer-hint', [
-    h('span', { class: 'detail-trailer-arrow', 'aria-hidden': 'true' }, '↑'),
-    h('span', '', 'Up to watch trailer'),
+    h('span', { class: 'detail-trailer-chevron', 'aria-hidden': 'true' }),
+    h('span', '', 'Watch trailer'),
   ]);
   show(trailerHint, false);
   el.appendChild(trailerHint);

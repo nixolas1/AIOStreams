@@ -256,7 +256,7 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
 ## Series subtitle preferences
 
 - Subtitle selections are saved per server, user and series in `player.seriesSubs.*`. Off is explicit.
-  New series use the existing global subtitle default. Font size remains a saved global preference.
+  New anime series default to English; other new series use the existing global subtitle default. Font size remains a saved global preference.
 - Each episode/source matches the remembered language (including ISO aliases), preferring the same label and
   embedded/external kind when available. IDs and indexes are not reused across episodes. Unknown languages
   require the same label and kind; unavailable languages stay off without discarding the saved choice.
@@ -275,3 +275,8 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
   and returns standard Jellyfin list DTOs. It ranks original-language no/nb/nn shows
   by current popularity, filtering episode dates and original network metadata.
 - Legacy `/Discover/RegionalShows` remains available to old clients during rollout.
+
+## Track picker previews
+
+- Audio labels retain AVPlay titles and channels and normalize MIME codecs; unknown languages use numbered tracks.
+- Subtitle rows show nearest downloaded SRT/VTT dialogue when focused. Embedded rows show the latest captured dialogue for that selected track; unselected tracks cannot be sampled by AVPlay without switching. Preview caches reset on source changes.

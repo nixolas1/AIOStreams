@@ -38,3 +38,11 @@ test('unknown-language selections are remembered without becoming Off', () => {
   assert.equal(preferredSubtitle([en, next], pref), next);
   assert.equal(preferredSubtitle([{ ...next, label: 'Subtitle 3' }], pref), null);
 });
+test('anime starts with English but preserves a series choice including Off', () => {
+  const anime = episode('anime-default');
+  assert.deepEqual(savedSubtitles(anime, true), { off: false, lang: 'en' });
+  saveSubtitles(anime, null);
+  assert.equal(savedSubtitles(anime, true).off, true);
+  saveSubtitles(anime, no);
+  assert.equal(savedSubtitles(anime, true).lang, 'no');
+});

@@ -278,3 +278,8 @@ video.av-object { background: #000; object-fit: contain; }
   left: 936px; top: 516px; width: 48px; height: 48px;
   border-width: 3px; border-radius: 50%; border-top-color: var(--text);
 }
+
+.tracks-copy { min-width: 0; flex: 1; }
+.tracks-col:nth-child(2) .tracks-opt { height: 92px; line-height: 32px; }
+.tracks-col:nth-child(2) .tracks-label { font-size: 24px; }
+.tracks-preview { font: 400 20px/26px var(--body); opacity: 0.72; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -17,7 +17,7 @@ import { setScreenSaver, isUhdPanel } from '../platform/tizen.js';
 import { episodeLabel } from '../util/format.js';
 import { toast } from '../ui/toast.js';
 import { pickSource, nextSource, nameLines, isUhd, rankSources } from '../player/pick.js';
-import { parseCues, CueTrack, stripTags, SUBTITLE_SIZES, SUBTITLE_SIZE_LABELS, subtitleSize } from '../player/subtitles.js';
+import { parseCues, nearestCue, CueTrack, stripTags, SUBTITLE_SIZES, SUBTITLE_SIZE_LABELS, subtitleSize } from '../player/subtitles.js';
 import { Seeker, COMMIT_MS } from '../player/seek.js';
 import { createOsd } from '../player/osd.js';
 import { createTracksPanel, chooseAudio, audioLabel, subtitleLabel, langCode } from '../player/tracks.js';
@@ -107,7 +107,7 @@ export function PlayerScreen(args) {
   }
   const errorBox = h('div', 'player-error hidden');
   const upnext = h('div', 'upnext hidden');
-  const panel = createTracksPanel({
+  const panel = createTracksPanel({ onFocus: previewFocused,
     onChoose: choose,
     onClose: function () { if (!paused) osd.show(); },
   });
@@ -152,6 +152,8 @@ export function PlayerScreen(args) {
   let cueFor = '';
   let subTimer = 0;
   let embTimer = 0;
+  let samples = {};
+  let previewCues = {};
 
   let progressTimer = 0;
   let commitTimer = 0;
@@ -172,6 +174,8 @@ export function PlayerScreen(args) {
       if (!alive || subId.indexOf('emb:') !== 0) return;
       clearTimeout(embTimer);
       osd.setSubtitle(stripTags(text));
+      if (stripTags(text)) samples[subId] = [{ start: player.time(), end: player.time() + ms, text: stripTags(text) }];
+      if (panel.isOpen()) refreshPreviews();
       if (ms > 0) embTimer = setTimeout(function () { osd.setSubtitle(''); }, ms);
     },
   });
@@ -402,13 +406,15 @@ export function PlayerScreen(args) {
     audioTracks = [];
     embeddedText = [];
     subList = [];
+    samples = {};
+    previewCues = {};
   }
 
   function rebuildSubList() {
     const list = [];
     for (let i = 0; i < embeddedText.length; i++) {
       list.push({ id: 'emb:' + embeddedText[i].id, kind: 'emb', lang: embeddedText[i].lang, ref: embeddedText[i],
-        label: subtitleLabel({ lang: embeddedText[i].lang }, i + 1) + '  ·  embedded' });
+        label: subtitleLabel(embeddedText[i], i + 1) + '  ·  embedded' });
     }
     const ext = externalSubtitles(current);
     for (let i = 0; i < ext.length; i++) {
@@ -445,7 +451,7 @@ export function PlayerScreen(args) {
 
   function autoSubtitle() {
     if (subTouched || subId !== 'off') return;
-    const opt = preferredSubtitle(subList, savedSubtitles(item));
+    const opt = preferredSubtitle(subList, savedSubtitles(item, hubs.kindOf(item) === 'anime'));
     if (opt) applySubtitle(opt);
   }
 
@@ -482,12 +488,41 @@ export function PlayerScreen(args) {
     }, SUBTITLE_POLL_MS);
   }
 
+  function previewText(opt) {
+    const cues = opt.kind === 'emb' ? samples[opt.id] : previewCues[opt.id];
+    return cues ? (nearestCue(cues, player.time()) || 'No text preview available') :
+      opt.kind === 'emb' ? 'Select to sample dialogue' : 'Focus to preview dialogue';
+  }
+
+  function refreshPreviews() {
+    if (!panelData) return;
+    panelData.subs.forEach(function (row, i) {
+      if (row.ref) panel.setPreview(i, previewText(row.ref));
+    });
+  }
+
+  function previewFocused(col, index) {
+    const row = panelData && panelData.subs[index];
+    if (col !== 1 || !row || !row.ref || row.ref.kind !== 'ext') return;
+    const opt = row.ref;
+    if (previewCues[opt.id]) { refreshPreviews(); return; }
+    const mine = gen;
+    panel.setPreview(index, 'Loading dialogue…');
+    fetch(subtitleHref(opt.ref)).then(function (r) { if (!r.ok) throw new Error('subtitle'); return r.text(); }).then(function (txt) {
+      if (!alive || mine !== gen) return;
+      previewCues[opt.id] = parseCues(txt);
+      if (panel.isOpen()) refreshPreviews();
+    }, function () {
+      if (alive && mine === gen && panel.isOpen()) panel.setPreview(index, 'Preview unavailable');
+    });
+  }
+
   function openPanel() {
     if (!current) return;
     const cur = player.currentAudio();
     const audio = audioTracks.map(function (a, i) { return { label: audioLabel(a, i + 1), on: a.id === cur, ref: a }; });
     const subs = [{ label: 'Off', on: subId === 'off', ref: null }];
-    for (let i = 0; i < subList.length; i++) subs.push({ label: subList[i].label, on: subList[i].id === subId, ref: subList[i] });
+    for (let i = 0; i < subList.length; i++) subs.push({ preview: previewText(subList[i]), label: subList[i].label, on: subList[i].id === subId, ref: subList[i] });
     osd.hide();
     const size = subtitleSize(store.get('player.subSize', 46));
     const sizes = SUBTITLE_SIZES.map(function (px, i) { return { label: SUBTITLE_SIZE_LABELS[i], on: px === size, ref: px }; });

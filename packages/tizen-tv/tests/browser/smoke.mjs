@@ -315,6 +315,8 @@ try {
   await p2.waitForFunction(() => !document.querySelector('.spinner').classList.contains('on'));
   await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('down'); });
   assert.match(await p2.locator('.tracks-col:nth-child(2) .tracks-opt').filter({ hasText: '✓' }).textContent(), /English/, 'next episode restores subtitle selection');
+  await p2.waitForFunction(() => { const rows = document.querySelectorAll('.tracks-col:nth-child(2) .tracks-preview'); return Array.from(rows).some(row => row.textContent && !/Focus|Loading|Select/.test(row.textContent)); });
+  if (process.env.TV_TRACKS_SCREENSHOT) await p2.screenshot({ path: process.env.TV_TRACKS_SCREENSHOT });
   await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('back'); });
   const watchedRequest = p2.waitForResponse(r => r.url().includes('/UserPlayedItems/') && r.request().method() === 'POST');
   await p2.evaluate(async () => {

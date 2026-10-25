@@ -74,7 +74,7 @@ function avplayBackend(container, listener) {
 
   function info(t) {
     let x = {};
-    try { x = JSON.parse(t.extra_info) || {}; } catch (e) { x = {}; }
+    try { x = (typeof t.extra_info === 'string' ? JSON.parse(t.extra_info) : t.extra_info) || {}; } catch (e) { x = {}; }
     return x;
   }
 
@@ -139,7 +139,7 @@ function avplayBackend(container, listener) {
       const text = [];
       for (let i = 0; i < all.length; i++) {
         const x = info(all[i]);
-        const t = { id: all[i].index, lang: x.language || x.track_lang || '', codec: x.fourCC || '' };
+        const t = { id: all[i].index, lang: x.language || x.track_lang || '', codec: x.fourCC || '', title: x.title || x.track_name || '', channels: x.channels || '' };
         if (all[i].type === 'AUDIO') audio.push(t);
         else if (all[i].type === 'TEXT') text.push(t);
       }

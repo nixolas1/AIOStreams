@@ -45,10 +45,12 @@ const CODEC = { EAC3: 'DD+', AC3: 'DD', DTS: 'DTS', DTSH: 'DTS-HD', TRUEHD: 'Tru
 /** "English · DD+" / "Track 2". */
 export function audioLabel(track, n) {
   const lang = langName(track.lang);
-  const codec = String(track.codec || '').trim();
+  const codec = String(track.codec || '').trim().replace(/^audio\/(?:x-)?/i, '').replace(/[-_]/g, '');
   const c = codec ? (CODEC[codec.toUpperCase()] || codec.toUpperCase()) : '';
   const parts = [];
-  if (lang) parts.push(lang);
+  parts.push(lang || 'Track ' + n);
+  if (track.title) parts.push(track.title);
+  if (track.channels) parts.push(track.channels + ' ch');
   if (c) parts.push(c);
   return parts.length ? parts.join('  ·  ') : 'Track ' + n;
 }
@@ -119,7 +121,7 @@ export function createTracksPanel(handlers) {
       t.textContent = '';
       cols[c].rows = [];
       for (let i = 0; i < lists[c].length; i++) {
-        const row = h('div', 'tracks-opt', [h('span', 'tracks-mark', lists[c][i].on ? '✓' : ''), h('span', 'tracks-label', lists[c][i].label)]);
+        const row = h('div', 'tracks-opt', [h('span', 'tracks-mark', lists[c][i].on ? '✓' : ''), h('div', 'tracks-copy', [h('div', 'tracks-label', lists[c][i].label), h('div', 'tracks-preview', lists[c][i].preview || '')])]);
         t.appendChild(row);
         cols[c].rows.push(row);
       }
@@ -132,12 +134,20 @@ export function createTracksPanel(handlers) {
       const rows = cols[c].rows;
       for (let i = 0; i < rows.length; i++) toggleClass(rows[i], 'focus', c === col && i === idx[c]);
       toggleClass(cols[c].wrap, 'active', c === col);
-      const first = Math.max(0, Math.min(idx[c] - 2, Math.max(0, rows.length - VISIBLE)));
-      setTransform(cols[c].track, 'translateY(' + (-first * ROW_H) + 'px)');
+      const first = Math.max(0, Math.min(idx[c] - 2, Math.max(0, rows.length - (c === 1 ? 4 : VISIBLE))));
+      setTransform(cols[c].track, 'translateY(' + (-first * (c === 1 ? 96 : ROW_H)) + 'px)');
     }
   }
 
+  function focused() {
+    if (handlers && handlers.onFocus) handlers.onFocus(col, idx[col]);
+  }
+
   return {
+    setPreview: function (index, text) {
+      const row = cols[1].rows[index];
+      if (row) row.querySelector('.tracks-preview').textContent = text;
+    },
     el: el,
     isOpen: function () { return isOpen; },
     open: function (data) {
@@ -148,6 +158,7 @@ export function createTracksPanel(handlers) {
       el.classList.remove('hidden');
       isOpen = true;
       paint();
+      focused();
     },
     close: function () {
       if (!isOpen) return;
@@ -169,6 +180,7 @@ export function createTracksPanel(handlers) {
         return true;
       }
       paint();
+      focused();
       return true;
     },
   };

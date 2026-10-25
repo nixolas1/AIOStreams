@@ -11,10 +11,11 @@ export function subtitlePreference(opt) {
   return opt ? { off: false, lang: langCode(opt.lang), kind: opt.kind, label: opt.label || '' } : { off: true };
 }
 
-export function savedSubtitles(item) {
+export function savedSubtitles(item, anime) {
   const k = key(item);
   const saved = k && store.get(k, null);
   if (saved && typeof saved.off === 'boolean') return saved;
+  if (anime) return { off: false, lang: 'en' };
   const lang = store.get('player.subLang', store.get('subLang', 'off'));
   return { off: !lang || lang === 'off', lang: langCode(lang) };
 }

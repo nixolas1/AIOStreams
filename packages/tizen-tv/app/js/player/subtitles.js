@@ -110,3 +110,16 @@ export const SUBTITLE_SIZE_LABELS = ['Small', 'Medium', 'Default', 'Large', 'Ext
 export function subtitleSize(value) {
   return SUBTITLE_SIZES.indexOf(value) >= 0 ? value : 46;
 }
+
+/** Nearest dialogue, including between cues and before the first cue. */
+export function nearestCue(cues, time) {
+  let best = null;
+  let distance = Infinity;
+  for (let i = 0; i < cues.length; i++) {
+    const cue = cues[i];
+    const d = time < cue.start ? cue.start - time : Math.max(0, time - cue.end);
+    if (d < distance) { best = cue; distance = d; }
+    if (d === 0) break;
+  }
+  return best ? best.text.replace(/\s+/g, ' ') : '';
+}

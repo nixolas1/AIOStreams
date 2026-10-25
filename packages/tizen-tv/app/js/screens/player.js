@@ -152,7 +152,10 @@ export function PlayerScreen(args) {
   let cueFor = '';
   let subTimer = 0;
   let embTimer = 0;
-  let samples = {};
+  let embeddedPreview = null;
+  let embeddedPreviewBucket = -1;
+  let embeddedPreviewPending = null;
+  let embeddedPreviewError = false;
   let previewCues = {};
 
   let progressTimer = 0;
@@ -174,8 +177,7 @@ export function PlayerScreen(args) {
       if (!alive || subId.indexOf('emb:') !== 0) return;
       clearTimeout(embTimer);
       osd.setSubtitle(stripTags(text));
-      if (stripTags(text)) samples[subId] = [{ start: player.time(), end: player.time() + ms, text: stripTags(text) }];
-      if (panel.isOpen()) refreshPreviews();
+
       if (ms > 0) embTimer = setTimeout(function () { osd.setSubtitle(''); }, ms);
     },
   });
@@ -327,6 +329,7 @@ export function PlayerScreen(args) {
     player.play();
     paused = false;
     started = true;
+    loadEmbeddedPreviews();
     relisted = false;       // a link that expires later in a long session can be renewed again
     osd.setPaused(false);
     osd.setBuffering(false);
@@ -406,14 +409,17 @@ export function PlayerScreen(args) {
     audioTracks = [];
     embeddedText = [];
     subList = [];
-    samples = {};
+    embeddedPreview = null;
+    embeddedPreviewBucket = -1;
+    embeddedPreviewPending = null;
+    embeddedPreviewError = false;
     previewCues = {};
   }
 
   function rebuildSubList() {
     const list = [];
     for (let i = 0; i < embeddedText.length; i++) {
-      list.push({ id: 'emb:' + embeddedText[i].id, kind: 'emb', lang: embeddedText[i].lang, ref: embeddedText[i],
+      list.push({ id: 'emb:' + embeddedText[i].id, kind: 'emb', ordinal: i, lang: embeddedText[i].lang, ref: embeddedText[i],
         label: subtitleLabel(embeddedText[i], i + 1) + '  ·  embedded' });
     }
     const ext = externalSubtitles(current);
@@ -488,10 +494,42 @@ export function PlayerScreen(args) {
     }, SUBTITLE_POLL_MS);
   }
 
+  function loadEmbeddedPreviews() {
+    if (!current || !embeddedText.length) return;
+    const bucket = Math.floor(player.time() / 30000);
+    if (embeddedPreviewPending || (embeddedPreview && embeddedPreviewBucket === bucket)) return;
+    const mine = gen;
+    embeddedPreviewBucket = bucket;
+    embeddedPreviewError = false;
+    embeddedPreview = null;
+    const pending = client.get('/Videos/' + encodeURIComponent(item.Id) + '/' + encodeURIComponent(current.Id) + '/SubtitlePreview', { PositionMs: player.time() });
+    embeddedPreviewPending = pending;
+    pending.then(function (result) {
+      if (!alive || mine !== gen || embeddedPreviewPending !== pending) return;
+      embeddedPreviewPending = null;
+      // Both APIs enumerate subtitle streams in container order. Never apply a partial list.
+      if (!result || !result.Tracks || result.Tracks.length !== embeddedText.length) {
+        embeddedPreviewError = true;
+      } else {
+        embeddedPreview = result.Tracks;
+      }
+      if (panel.isOpen()) refreshPreviews();
+    }, function () {
+      if (!alive || mine !== gen || embeddedPreviewPending !== pending) return;
+      embeddedPreviewPending = null;
+      embeddedPreviewError = true;
+      if (panel.isOpen()) refreshPreviews();
+    });
+  }
+
   function previewText(opt) {
-    const cues = opt.kind === 'emb' ? samples[opt.id] : previewCues[opt.id];
-    return cues ? (nearestCue(cues, player.time()) || 'No text preview available') :
-      opt.kind === 'emb' ? 'Select to sample dialogue' : 'Focus to preview dialogue';
+    if (opt.kind === 'emb') {
+      const track = embeddedPreview && embeddedPreview[opt.ordinal];
+      if (track) return nearestCue(track.cues || [], player.time()) || 'No nearby text subtitle';
+      return embeddedPreviewError ? 'Preview unavailable' : 'Loading nearby dialogue…';
+    }
+    const cues = previewCues[opt.id];
+    return cues ? (nearestCue(cues, player.time()) || 'No text preview available') : 'Focus to preview dialogue';
   }
 
   function refreshPreviews() {
@@ -503,7 +541,8 @@ export function PlayerScreen(args) {
 
   function previewFocused(col, index) {
     const row = panelData && panelData.subs[index];
-    if (col !== 1 || !row || !row.ref || row.ref.kind !== 'ext') return;
+    if (col !== 1 || !row || !row.ref) return;
+    if (row.ref.kind === 'emb') { loadEmbeddedPreviews(); refreshPreviews(); return; }
     const opt = row.ref;
     if (previewCues[opt.id]) { refreshPreviews(); return; }
     const mine = gen;
@@ -527,6 +566,7 @@ export function PlayerScreen(args) {
     const size = subtitleSize(store.get('player.subSize', 46));
     const sizes = SUBTITLE_SIZES.map(function (px, i) { return { label: SUBTITLE_SIZE_LABELS[i], on: px === size, ref: px }; });
     panelData = { audio: audio, subs: subs, sizes: sizes };
+    loadEmbeddedPreviews();
     panel.open(panelData);
   }
   function choose(col, index) {

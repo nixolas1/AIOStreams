@@ -279,4 +279,4 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
 ## Track picker previews
 
 - Audio labels retain AVPlay titles and channels and normalize MIME codecs; unknown languages use numbered tracks.
-- Subtitle rows show nearest downloaded SRT/VTT dialogue when focused. Embedded rows show the latest captured dialogue for that selected track; unselected tracks cannot be sampled by AVPlay without switching. Preview caches reset on source changes.
+- Subtitle rows show nearest downloaded SRT/VTT dialogue when focused. Embedded text rows use a background server read of nearby packets from every subtitle stream. Highlighting a row shows the nearest available cue before or after playback without selecting a track or waiting for a live subtitle callback. The server probes a bounded 90-second window on each side, coalesces requests per 30-second bucket, and caches briefly; bitmap subtitles have no text preview. Full container-order track counts must match before previews are displayed. Preview caches reset on source changes.

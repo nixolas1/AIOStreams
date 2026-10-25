@@ -430,6 +430,43 @@ try {
   assert.equal(await p2.locator('.screen.trailer').count(), 0);
 
 
+  // Highlight-only embedded preview: no AVPlay subtitle callback and no OK press.
+  let previewRequests = 0;
+  await p2.route('**/SubtitlePreview?*', async route => {
+    previewRequests++;
+    await route.fulfill({ json: { Tracks: [
+      { index: 2, lang: 'eng', cues: [{ start: 30000, end: 33000, text: 'English from before the playhead' }, { start: 80000, end: 83000, text: 'English from later' }] },
+      { index: 3, lang: 'nor', cues: [{ start: 48000, end: 51000, text: 'Norsk fra neste replikk' }] },
+    ] } });
+  });
+  await p2.evaluate(async () => {
+    window.previewSelections = [];
+    let position = 45000;
+    window.webapis = { avplay: {
+      open() {}, close() {}, stop() {}, setListener() {}, setDisplayRect() {}, setDisplayMethod() {},
+      prepareAsync(done) { done(); }, getDuration() { return 180000; },
+      play() {}, pause() {}, getState() { return 'PLAYING'; },
+      getCurrentTime() { return position; }, seekTo(ms, done) { position = ms; done(); },
+      getTotalTrackInfo() { return [0, 1].map(index => ({ type: 'TEXT', index, extra_info: '{}' })); },
+      getCurrentStreamInfo() { return []; },
+      setSelectTrack(type, index) { window.previewSelections.push([type, index]); }, setSilentSubtitle() {},
+    } };
+    const jf = await import('/js/api/jellyfin.js');
+    const router = await import('/js/router.js');
+    const { PlayerScreen } = await import('/js/screens/player.js');
+    const next = await jf.nextUp({ limit: 1 });
+    router.push(PlayerScreen({ item: next.Items[0], opts: { startMs: 45000 } }));
+  });
+  await p2.waitForFunction(() => document.querySelector('.av-object') && !document.querySelector('.screen.player:last-child .spinner.on'));
+  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('down'); top().onKey('left'); top().onKey('right'); top().onKey('up'); });
+  await p2.waitForFunction(() => Array.from(document.querySelectorAll('.tracks-preview')).some(el => el.textContent === 'Norsk fra neste replikk'));
+  assert.equal(await p2.locator('.tracks-preview').filter({ hasText: 'English from before the playhead' }).count(), 1);
+  const selectedBefore = await p2.evaluate(() => JSON.stringify(window.previewSelections));
+  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('up'); });
+  assert.equal(await p2.evaluate(() => JSON.stringify(window.previewSelections)), selectedBefore, 'highlighting never changes the active track');
+  assert.equal(previewRequests, 1, 'all embedded tracks share a cached request');
+  if (process.env.TV_EMBEDDED_PREVIEW_SCREENSHOT) await p2.screenshot({ path: process.env.TV_EMBEDDED_PREVIEW_SCREENSHOT });
+
   assert.deepEqual(errors, [], 'page errors: ' + errors.join(' | '));
   await ctx2.close();
   console.log('smoke: ok (' + path.basename(exe) + ')');

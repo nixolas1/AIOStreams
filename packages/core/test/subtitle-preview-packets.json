@@ -1,0 +1,56 @@
+{
+    "packets": [
+        {
+            "stream_index": 2,
+            "pts_time": "4.000000",
+            "duration_time": "3.000000",
+            "data": "\n00000000: 302c 302c 4465 6661 756c 742c 2c30 2c30  0,0,Default,,0,0\n00000010: 2c30 2c2c 5469 646c 6967 6572 6520 6e6f  ,0,,Tidligere no\n00000020: 7273 6b20 7465 6b73 74                   rsk tekst\n"
+        },
+        {
+            "stream_index": 1,
+            "pts_time": "5.000000",
+            "duration_time": "3.000000",
+            "data": "\n00000000: 302c 302c 4465 6661 756c 742c 2c30 2c30  0,0,Default,,0,0\n00000010: 2c30 2c2c 4561 726c 6965 7220 456e 676c  ,0,,Earlier Engl\n00000020: 6973 6820 6469 616c 6f67 7565            ish dialogue\n"
+        },
+        {
+            "stream_index": 1,
+            "pts_time": "70.000000",
+            "duration_time": "3.000000",
+            "data": "\n00000000: 312c 302c 4465 6661 756c 742c 2c30 2c30  1,0,Default,,0,0\n00000010: 2c30 2c2c 456e 676c 6973 6820 6168 6561  ,0,,English ahea\n00000020: 642c 2077 6974 6820 636f 6d6d 6173       d, with commas\n"
+        },
+        {
+            "stream_index": 2,
+            "pts_time": "72.000000",
+            "duration_time": "3.000000",
+            "data": "\n00000000: 312c 302c 4465 6661 756c 742c 2c30 2c30  1,0,Default,,0,0\n00000010: 2c30 2c2c 4e6f 7273 6b20 7465 6b73 7420  ,0,,Norsk tekst \n00000020: 6672 656d 6f76 6572                      fremover\n"
+        },
+        {
+            "stream_index": 1,
+            "pts_time": "130.000000",
+            "duration_time": "3.000000",
+            "data": "\n00000000: 322c 302c 4465 6661 756c 742c 2c30 2c30  2,0,Default,,0,0\n00000010: 2c30 2c2c 4c61 7465 7220 456e 676c 6973  ,0,,Later Englis\n00000020: 6820 6469 616c 6f67 7565                 h dialogue\n"
+        }
+    ],
+    "programs": [
+
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "index": 1,
+            "codec_name": "ass",
+            "tags": {
+                "language": "eng"
+            }
+        },
+        {
+            "index": 2,
+            "codec_name": "ass",
+            "tags": {
+                "language": "nor"
+            }
+        }
+    ]
+}

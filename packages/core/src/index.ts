@@ -104,3 +104,4 @@ export type {
   RunPlayChainConfig,
   RunPlayChainResult,
 } from './main/failover.js';
+export { readSubtitlePreview, type SubtitlePreviewTrack } from './media-info/subtitle-preview.js';

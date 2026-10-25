@@ -146,7 +146,8 @@ export function createTracksPanel(handlers) {
   return {
     setPreview: function (index, text) {
       const row = cols[1].rows[index];
-      if (row) row.querySelector('.tracks-preview').textContent = text;
+      const preview = row && row.querySelector('.tracks-preview');
+      if (preview && preview.textContent !== text) preview.textContent = text;
     },
     el: el,
     isOpen: function () { return isOpen; },

@@ -5,62 +5,17 @@
 // Playwright is resolved from: PLAYWRIGHT_PATH, ./node_modules, then any
 // ~/.npm/_npx/*/node_modules/playwright. Chromium: PLAYWRIGHT_CHROMIUM, or the
 // newest ~/Library/Caches/ms-playwright (or ~/.cache/ms-playwright) browser.
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
 import { createServer } from '../../tools/devserver.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const pkgRoot = path.resolve(here, '..', '..');
 
 function skip(why) {
   console.log('smoke: SKIPPED (' + why + ')');
   process.exit(0);
 }
 
-function findPlaywright() {
-  const cands = [];
-  if (process.env.PLAYWRIGHT_PATH) cands.push(process.env.PLAYWRIGHT_PATH);
-  cands.push(path.join(pkgRoot, 'node_modules', 'playwright'));
-  const npx = path.join(os.homedir(), '.npm', '_npx');
-  if (fs.existsSync(npx)) for (const d of fs.readdirSync(npx)) cands.push(path.join(npx, d, 'node_modules', 'playwright'));
-  for (const c of cands) {
-    if (fs.existsSync(path.join(c, 'package.json'))) {
-      try { return createRequire(path.join(c, 'package.json'))(c); } catch (e) { /* try next */ }
-    }
-  }
-  return null;
-}
-
-function findChromium() {
-  if (process.env.PLAYWRIGHT_CHROMIUM) return process.env.PLAYWRIGHT_CHROMIUM;
-  const bases = [path.join(os.homedir(), 'Library', 'Caches', 'ms-playwright'), path.join(os.homedir(), '.cache', 'ms-playwright')];
-  const exes = [];
-  for (const b of bases) {
-    if (!fs.existsSync(b)) continue;
-    for (const d of fs.readdirSync(b).sort().reverse()) {
-      if (!/^chromium(_headless_shell)?-\d+$/.test(d)) continue;
-      const root = path.join(b, d);
-      const walk = (dir, depth) => {
-        if (depth > 6) return;
-        for (const n of fs.readdirSync(dir)) {
-          const p = path.join(dir, n);
-          let st;
-          try { st = fs.statSync(p); } catch (e) { continue; }
-          if (st.isDirectory()) walk(p, depth + 1);
-          else if (n === 'chrome-headless-shell' || n === 'Google Chrome for Testing' || n === 'chrome') exes.push(p);
-        }
-      };
-      walk(root, 0);
-    }
-  }
-  // prefer the headless shell
-  exes.sort((a, b) => (/headless/.test(b) ? 1 : 0) - (/headless/.test(a) ? 1 : 0));
-  return exes[0] || null;
-}
+import { findPlaywright, findChromium } from './runtime.mjs';
 
 const pw = findPlaywright();
 if (!pw) skip('playwright package not found');

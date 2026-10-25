@@ -10,7 +10,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const appDir = path.join(root, 'app');
 const fixDir = path.join(root, 'tests', 'fixtures');
 const MOCK = '/mock/jellyfin';
 
@@ -39,7 +38,8 @@ function strip(t) {
 }
 
 // Test hooks on the returned server: playLog, streamLog ([{session, source}] per stream request), infoLog ([{fresh, sourceId}] per PlaybackInfo request), POST /mock/jellyfin/__mock/expire (stream requests with a PlaySessionId issued before it answer 410; ?always=1 keeps every stream failing, ?always=0 resets), userLog (UserData/Rating calls), searchLog, knobs {searchDelayMs, searchStatus, userStatus}.
-export function createServer() {
+export function createServer(options = {}) {
+  const appDir = options.appDir || path.join(root, 'app');
   // Seeded so the My list / Library rows have something to show.
   const favorites = new Set([catalog.items['view-trending-movies'][1], catalog.items['view-popular-series'][2]]);
   const playLog = []; // [{path, body}] of /Sessions/Playing* calls, for tests (never holds tokens)

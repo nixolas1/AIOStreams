@@ -434,6 +434,7 @@ try {
   let previewRequests = 0;
   await p2.route('**/SubtitlePreview?*', async route => {
     previewRequests++;
+    if (previewRequests > 1) { await route.fulfill({ status: 503, json: { Message: 'Unavailable' } }); return; }
     await route.fulfill({ json: { Tracks: [
       { index: 2, lang: 'eng', cues: [{ start: 30000, end: 33000, text: 'English from before the playhead' }, { start: 80000, end: 83000, text: 'English from later' }] },
       { index: 3, lang: 'nor', cues: [{ start: 48000, end: 51000, text: 'Norsk fra neste replikk' }] },
@@ -441,30 +442,51 @@ try {
   });
   await p2.evaluate(async () => {
     window.previewSelections = [];
-    let position = 45000;
+    window.previewTime = 45000;
+    let state = 'READY';
     window.webapis = { avplay: {
-      open() {}, close() {}, stop() {}, setListener() {}, setDisplayRect() {}, setDisplayMethod() {},
+      open() {}, close() {}, stop() {}, setListener(listener) { window.subtitleListener = listener; }, setDisplayRect() {}, setDisplayMethod() {},
       prepareAsync(done) { done(); }, getDuration() { return 180000; },
-      play() {}, pause() {}, getState() { return 'PLAYING'; },
-      getCurrentTime() { return position; }, seekTo(ms, done) { position = ms; done(); },
-      getTotalTrackInfo() { return [0, 1].map(index => ({ type: 'TEXT', index, extra_info: '{}' })); },
+      play() { state = 'PLAYING'; }, pause() {}, getState() { return state; },
+      getCurrentTime() { return window.previewTime; }, seekTo(ms, done) { window.previewTime = ms; done(); },
+      getTotalTrackInfo() { if (state !== 'PLAYING') throw new Error('not playing'); return [0, 1].map(index => ({ type: 'TEXT', index, extra_info: JSON.stringify({ track_lang: index === 0 ? 'eng' : 'nor' }) })); },
       getCurrentStreamInfo() { return []; },
-      setSelectTrack(type, index) { window.previewSelections.push([type, index]); }, setSilentSubtitle() {},
+      setSelectTrack(type, index) { if (state !== 'PLAYING' || window.failSelect) throw new Error('selection failed'); window.previewSelections.push([type, index]); }, setSilentSubtitle() {},
     } };
     const jf = await import('/js/api/jellyfin.js');
     const router = await import('/js/router.js');
     const { PlayerScreen } = await import('/js/screens/player.js');
     const next = await jf.nextUp({ limit: 1 });
-    router.push(PlayerScreen({ item: next.Items[0], opts: { startMs: 45000 } }));
+    router.push(PlayerScreen({ item: Object.assign({}, next.Items[0], { SeriesId: 'preview-anime', _kind: 'anime' }), opts: { startMs: 45000 } }));
   });
   await p2.waitForFunction(() => document.querySelector('.av-object') && !document.querySelector('.screen.player:last-child .spinner.on'));
-  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('down'); top().onKey('left'); top().onKey('right'); top().onKey('up'); });
+  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('down'); top().onKey('left'); top().onKey('right'); });
   await p2.waitForFunction(() => Array.from(document.querySelectorAll('.tracks-preview')).some(el => el.textContent === 'Norsk fra neste replikk'));
   assert.equal(await p2.locator('.tracks-preview').filter({ hasText: 'English from before the playhead' }).count(), 1);
+  assert.deepEqual(await p2.evaluate(() => window.previewSelections), [['TEXT', 0]], 'anime English default is selected after playback starts');
+  await p2.evaluate(() => window.subtitleListener.onsubtitlechange(60000, 'Automatically selected English dialogue'));
+  assert.equal(await p2.locator('.subs').last().textContent(), 'Automatically selected English dialogue');
   const selectedBefore = await p2.evaluate(() => JSON.stringify(window.previewSelections));
-  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('up'); });
+  await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('down'); });
   assert.equal(await p2.evaluate(() => JSON.stringify(window.previewSelections)), selectedBefore, 'highlighting never changes the active track');
   assert.equal(previewRequests, 1, 'all embedded tracks share a cached request');
+  await p2.evaluate(async () => {
+    const { top } = await import('/js/router.js'); top().onKey('enter');
+    window.subtitleListener.onsubtitlechange(60000, 'Active embedded dialogue');
+  });
+  assert.equal(await p2.locator('.subs').last().textContent(), 'Active embedded dialogue', 'OK selects a subtitle that still renders during playback');
+  await p2.evaluate(async () => {
+    window.previewTime = 120000;
+    const { top } = await import('/js/router.js'); top().onKey('down');
+  });
+  await p2.waitForFunction(() => Array.from(document.querySelectorAll('.tracks-preview')).some(el => el.textContent === 'Preview unavailable'));
+  assert.equal(await p2.locator('.subs').last().textContent(), 'Active embedded dialogue', 'failed preview leaves active dialogue intact');
+  await p2.evaluate(async () => {
+    window.failSelect = true;
+    const { top } = await import('/js/router.js'); top().onKey('up'); top().onKey('enter');
+    window.subtitleListener.onsubtitlechange(60000, 'Previous track remains active');
+  });
+  assert.equal(await p2.locator('.subs').last().textContent(), 'Previous track remains active', 'rejected selection does not clear active subtitle state');
   if (process.env.TV_EMBEDDED_PREVIEW_SCREENSHOT) await p2.screenshot({ path: process.env.TV_EMBEDDED_PREVIEW_SCREENSHOT });
 
   assert.deepEqual(errors, [], 'page errors: ' + errors.join(' | '));

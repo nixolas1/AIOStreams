@@ -22,6 +22,7 @@ import {
   maskSensitiveInfo,
   onPlay,
 } from '@aiostreams/core';
+import { rememberPlayedFile } from '../jellyfin/played-file.js';
 import { ZodError } from 'zod';
 import {
   StaticFiles,
@@ -281,6 +282,7 @@ router.get(
         'Debrid resolve succeeded, redirecting'
       );
 
+      rememberPlayedFile(req.originalUrl, result.url);
       res.setHeader('Cache-Control', 'no-store');
       res.redirect(307, result.url);
 

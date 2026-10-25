@@ -318,7 +318,6 @@ export function PlayerScreen(args) {
     if (!alive || mine !== gen) return;
     duration = (r && r.durationMs) || durationFromItem();
     loadIntros(mine, r && r.durationMs);
-    setupTracks(mine);
     position = atMs || 0;
     if (atMs > 0) {
       seeking = true;
@@ -329,7 +328,7 @@ export function PlayerScreen(args) {
     player.play();
     paused = false;
     started = true;
-    loadEmbeddedPreviews();
+    setupTracks(mine);
     relisted = false;       // a link that expires later in a long session can be renewed again
     osd.setPaused(false);
     osd.setBuffering(false);
@@ -462,6 +461,10 @@ export function PlayerScreen(args) {
   }
 
   function applySubtitle(opt) {
+    if (opt && opt.kind === 'emb' && !player.selectText(opt.ref.id)) {
+      toast('Could not select that subtitle track', 3000);
+      return false;
+    }
     clearInterval(subTimer);
     clearTimeout(embTimer);
     cueTrack = null;
@@ -472,11 +475,11 @@ export function PlayerScreen(args) {
       player.selectText(null);
       return;
     }
-    subId = opt.id;
     if (opt.kind === 'emb') {
-      player.selectText(opt.ref.id);
+      subId = opt.id;
       return;
     }
+    subId = opt.id;
     // External text: AVPlay draws nothing, so we fetch and draw it.
     player.selectText(null);
     const id = opt.id;
@@ -526,7 +529,7 @@ export function PlayerScreen(args) {
     if (opt.kind === 'emb') {
       const track = embeddedPreview && embeddedPreview[opt.ordinal];
       if (track) return nearestCue(track.cues || [], player.time()) || 'No nearby text subtitle';
-      return embeddedPreviewError ? 'Preview unavailable' : 'Loading nearby dialogue…';
+      return embeddedPreviewError ? 'Preview unavailable' : embeddedPreviewPending ? 'Loading nearby dialogue…' : 'Focus to preview dialogue';
     }
     const cues = previewCues[opt.id];
     return cues ? (nearestCue(cues, player.time()) || 'No text preview available') : 'Focus to preview dialogue';
@@ -566,7 +569,6 @@ export function PlayerScreen(args) {
     const size = subtitleSize(store.get('player.subSize', 46));
     const sizes = SUBTITLE_SIZES.map(function (px, i) { return { label: SUBTITLE_SIZE_LABELS[i], on: px === size, ref: px }; });
     panelData = { audio: audio, subs: subs, sizes: sizes };
-    loadEmbeddedPreviews();
     panel.open(panelData);
   }
   function choose(col, index) {
@@ -580,8 +582,7 @@ export function PlayerScreen(args) {
       osd.setSubtitleSize(opt.ref);
     } else {
       subTouched = true;
-      applySubtitle(opt.ref);
-      saveSubtitles(item, opt.ref);
+      if (applySubtitle(opt.ref) !== false) saveSubtitles(item, opt.ref);
     }
     panel.close();
   }

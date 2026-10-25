@@ -10,6 +10,7 @@ import {
   subtitleExtensionOf,
   type SubtitleFormat,
 } from '@aiostreams/core';
+import { playedFileFor } from './played-file.js';
 import { jfOptional, param, qs } from './context.js';
 import { ensureMemo, locate, pickSource } from './playback.js';
 
@@ -129,15 +130,21 @@ router.get(
       res.status(404).end();
       return;
     }
+    // Only inspect the exact file already opened by playback, never its resolver.
+    const playedUrl = playedFileFor(source.url);
+    if (!playedUrl) {
+      res.status(409).json({ Message: 'No resolved playback file available' });
+      return;
+    }
     const bucket = Math.floor(position / 30000);
-    const key = JSON.stringify([loc.ctx.uuid, source.msid, source.url, bucket]);
+    const key = JSON.stringify([loc.ctx.uuid, source.msid, playedUrl, bucket]);
     let cached = previews.get(key);
     if (!cached || cached.until < Date.now()) {
       if (previews.size >= 12) previews.delete(previews.keys().next().value!);
       cached = {
         until: Date.now() + 120000,
         value: readSubtitlePreview(
-          source.url,
+          playedUrl,
           bucket * 30000 + 15000,
           source.requestHeaders
         ),

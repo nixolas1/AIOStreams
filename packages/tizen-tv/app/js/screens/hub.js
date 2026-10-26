@@ -157,7 +157,7 @@ export function createBrowsePage(opts) {
     spot = next.slice(0, 5);
     if (spotIndex >= spot.length) spotIndex = 0;
     if (!spot.length && zone === 'hero') zone = 'rows';
-    else if (spot.length && !touched && zone === 'rows') zone = 'hero';
+    else if (spot.length && !touched && zone === 'rows' && !startupResume()) zone = 'hero';
     syncZone();
     if (spot.length && (!moved || zone !== 'rows')) showHero(spot[spotIndex]);
     else if (!heroItem && slots.length) {
@@ -207,6 +207,11 @@ export function createBrowsePage(opts) {
     return slots.filter(function (s) { return s.ui && s.ui.count() > 0; });
   }
 
+  function startupResume() {
+    return tab === 'home' && !opts.focusNav && !touched &&
+      slots.some(function (s) { return s.id === 'resume' && s.ui && s.ui.count() > 0; });
+  }
+
   function layout() {
     const vis = visible();
     let y = 0;
@@ -221,6 +226,14 @@ export function createBrowsePage(opts) {
       s.y = y;
       y += s.ui.height;
     });
+    if (startupResume()) {
+      focusSlot = vis.filter(function (s) { return s.id === 'resume'; })[0];
+      zone = 'rows';
+      moved = true; // keep the selected resume item's hero still
+      showHero(focusSlot.ui.item());
+      topbar.setActive(false);
+      toggleClass(el, 'hero-focused', false);
+    }
     const at = focusSlot ? vis.indexOf(focusSlot) : -1;
     rowIndex = at >= 0 ? at : Math.min(rowIndex, Math.max(0, vis.length - 1));
     focusSlot = vis[rowIndex] || null;

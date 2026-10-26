@@ -17,7 +17,7 @@ import { setScreenSaver, isUhdPanel } from '../platform/tizen.js';
 import { episodeLabel } from '../util/format.js';
 import { toast } from '../ui/toast.js';
 import { pickSource, nextSource, nameLines, isUhd, rankSources } from '../player/pick.js';
-import { parseCues, nearestCue, CueTrack, stripTags, SUBTITLE_SIZES, SUBTITLE_SIZE_LABELS, subtitleSize } from '../player/subtitles.js';
+import { parseCues, readSubtitleResponse, nearestCue, CueTrack, stripTags, SUBTITLE_SIZES, SUBTITLE_SIZE_LABELS, subtitleSize } from '../player/subtitles.js';
 import { Seeker, COMMIT_MS } from '../player/seek.js';
 import { createOsd } from '../player/osd.js';
 import { createTracksPanel, chooseAudio, audioLabel, subtitleLabel, langCode } from '../player/tracks.js';
@@ -485,7 +485,7 @@ export function PlayerScreen(args) {
     const id = opt.id;
     const mine = gen;
     cueFor = id;
-    fetch(subtitleHref(opt.ref)).then(function (r) { return r.ok ? r.text() : ''; }).then(function (txt) {
+    fetch(subtitleHref(opt.ref)).then(function (r) { return r.ok ? readSubtitleResponse(r) : ''; }).then(function (txt) {
       if (!alive || mine !== gen || cueFor !== id) return;
       cueTrack = new CueTrack(parseCues(txt));
       if (!cueTrack.cues.length) toast('Those subtitles are empty', 2500);
@@ -550,7 +550,7 @@ export function PlayerScreen(args) {
     if (previewCues[opt.id]) { refreshPreviews(); return; }
     const mine = gen;
     panel.setPreview(index, 'Loading dialogue…');
-    fetch(subtitleHref(opt.ref)).then(function (r) { if (!r.ok) throw new Error('subtitle'); return r.text(); }).then(function (txt) {
+    fetch(subtitleHref(opt.ref)).then(function (r) { if (!r.ok) throw new Error('subtitle'); return readSubtitleResponse(r); }).then(function (txt) {
       if (!alive || mine !== gen) return;
       previewCues[opt.id] = parseCues(txt);
       if (panel.isOpen()) refreshPreviews();

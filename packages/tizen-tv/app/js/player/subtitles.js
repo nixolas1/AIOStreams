@@ -4,9 +4,57 @@
 
 const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', lrm: '', rlm: '' };
 
+// Reverse only complete UTF-8 sequences mistakenly decoded as Latin-1/Windows-1252.
+// Work per sequence so valid Norwegian/Japanese text elsewhere is never re-decoded.
+const CP1252 = '€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ';
+function legacyByte(c) {
+  const n = c.charCodeAt(0);
+  if (n <= 255) return n;
+  const i = CP1252.indexOf(c);
+  return i < 0 ? -1 : 128 + i;
+}
+
+export function repairSubtitleText(text) {
+  const source = String(text);
+  let out = '';
+  for (let at = 0; at < source.length; at++) {
+    const first = legacyByte(source.charAt(at));
+    const size = first >= 194 && first <= 244 ? (first < 224 ? 2 : first < 240 ? 3 : 4) : 0;
+    let encoded = '';
+    for (let i = 0; size && i < size && at + i < source.length; i++) {
+      const b = legacyByte(source.charAt(at + i));
+      if (b < 0 || (i && (b < 128 || b > 191))) break;
+      encoded += '%' + b.toString(16);
+    }
+    if (size && encoded.length === size * 3) {
+      try {
+        out += decodeURIComponent(encoded);
+        at += size - 1;
+        continue;
+      } catch (e) { /* not a valid UTF-8 sequence; preserve the original */ }
+    }
+    out += source.charAt(at);
+  }
+  return out;
+}
+
+/** Preserve BOM/declared encodings; prefer valid UTF-8 over misleading legacy headers. */
+export function readSubtitleResponse(response) {
+  return response.arrayBuffer().then(function (buffer) {
+    const bytes = new Uint8Array(buffer);
+    if (bytes[0] === 255 && bytes[1] === 254) return new TextDecoder('utf-16le').decode(bytes);
+    if (bytes[0] === 254 && bytes[1] === 255) return new TextDecoder('utf-16be').decode(bytes);
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (e) { /* legacy file */ }
+    const header = response.headers.get('content-type') || '';
+    const charset = /charset\s*=\s*["']?([^\s;"']+)/i.exec(header);
+    try { return new TextDecoder(charset ? charset[1] : 'windows-1252').decode(bytes); }
+    catch (e) { return new TextDecoder('windows-1252').decode(bytes); }
+  });
+}
+
 /** Removes markup (<i>, <font>, <c.cls>, {\an8}) and decodes the common entities. */
 export function stripTags(s) {
-  return String(s == null ? '' : s)
+  return repairSubtitleText(String(s == null ? '' : s))
     .replace(/\{\\[^}]*\}/g, '')
     .replace(/<br\s*\/?\s*>/gi, '\n')
     .replace(/<\/(?:p|div)\s*>/gi, '\n')

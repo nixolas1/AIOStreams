@@ -64,8 +64,21 @@ try {
 
   await p2.waitForFunction(() => !document.getElementById('splash'));
 
+  await p2.waitForFunction(() => {
+    const row = document.querySelector('.browse-home .row.active');
+    return row && row.textContent.includes('Continue watching');
+  });
+  await p2.waitForFunction(() => document.querySelectorAll('.browse-home .hero-dot:not(.hidden)').length > 1);
+  assert.equal(await p2.locator('.browse-home.hero-focused').count(), 0, 'spotlight must not steal startup resume focus');
+  await p2.reload();
+  await p2.waitForFunction(() => {
+    const row = document.querySelector('.browse-home .row.active');
+    return row && row.textContent.includes('Continue watching');
+  });
+
   // Moving across page tabs selects immediately and keeps focus in the menu.
   await p2.keyboard.press('ArrowUp');
+  await p2.waitForTimeout(50); // D-pad events are coalesced per animation frame.
   await p2.keyboard.press('ArrowUp');
   await p2.locator('.nav-item.focus').waitFor({ state: 'visible' });
   for (const tab of ['movies', 'series', 'anime', 'library']) {
@@ -326,7 +339,7 @@ try {
   await p2.waitForSelector('.detail .row.active');
   assert.equal(await p2.locator('.detail-seasons .current').last().textContent(), 'Season 2');
   const focusedId = await p2.evaluate(() => {
-    const row = document.querySelector('.row.active');
+    const row = document.querySelector('.detail .row.active');
     const tiles = Array.from(row.querySelectorAll('.tile'));
     return tiles.find(tile => Math.abs(tile.getBoundingClientRect().left - 96) < 2)._t.item.Id;
   });

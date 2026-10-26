@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCues, stripTags, CueTrack } from '../app/js/player/subtitles.js';
+import { parseCues, stripTags, CueTrack, readSubtitleResponse } from '../app/js/player/subtitles.js';
 
 const SRT = '﻿1\r\n00:00:01,000 --> 00:00:03,500\r\nHello <i>there</i>.\r\n\r\n2\r\n00:00:04,000 --> 00:00:06,000\r\n{\\an8}Line one\r\nLine two\r\n\r\n3\r\n00:01:00,250 --> 00:01:02,000\r\nA &amp; B\r\n';
 const VTT = 'WEBVTT\n\nNOTE a comment\n\nintro\n00:01.000 --> 00:02.500 align:start line:90%\n<v Bob>Hi</v>\n\n1:00:00.000 --> 1:00:01.000\nHour mark\n';
@@ -73,4 +73,21 @@ test('line separators survive markup cleanup without splitting inline formatting
   assert.equal(stripTags('some<i>thing</i>, &nbsp;yes'), 'something,  yes');
   const cues = parseCues('00:00:01,000 --> 00:00:03,000\nFirst<br/>second');
   assert.equal(cues[0].text, 'First\nsecond');
+});
+
+
+test('repairs UTF-8 mojibake in embedded and external dialogue without damaging valid text', () => {
+  assert.equal(stripTags('Davidâ€™s — Ã©Ã¸'), 'David’s — éø');
+  assert.equal(stripTags('Davidâ\u0080\u0094Martinez'), 'David—Martinez');
+  assert.equal(stripTags('ÆØÅ æøå é 日本語 😀'), 'ÆØÅ æøå é 日本語 😀');
+  assert.equal(stripTags('Â alone, Ã then text'), 'Â alone, Ã then text');
+  assert.equal(parseCues('00:00:01,000 --> 00:00:02,000\nâ€œHiâ€')[0].text, '“Hi”');
+});
+
+test('external subtitle bytes support UTF-8, UTF-16 BOM and legacy encodings', async () => {
+  assert.equal(await readSubtitleResponse(new Response(new TextEncoder().encode('æøå 日本語'))), 'æøå 日本語');
+  assert.equal(await readSubtitleResponse(new Response(new Uint8Array([0xff, 0xfe, 0xe6, 0]))), 'æ');
+  assert.equal(await readSubtitleResponse(new Response(new Uint8Array([0xfe, 0xff, 0, 0xe6]))), 'æ');
+  assert.equal(await readSubtitleResponse(new Response(new Uint8Array([0x93, 0xe6, 0x94]))), '“æ”');
+  assert.equal(await readSubtitleResponse(new Response(new Uint8Array([0xb1]), { headers: { 'content-type': 'text/plain; charset=iso-8859-2' } })), 'ą');
 });

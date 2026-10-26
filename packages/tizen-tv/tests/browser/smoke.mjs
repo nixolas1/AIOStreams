@@ -283,7 +283,7 @@ try {
   await p2.waitForFunction(() => !document.querySelector('.spinner').classList.contains('on'));
   await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('down'); });
   assert.match(await p2.locator('.tracks-col:nth-child(2) .tracks-opt').filter({ hasText: '✓' }).textContent(), /English/, 'next episode restores subtitle selection');
-  await p2.waitForFunction(() => { const rows = document.querySelectorAll('.tracks-col:nth-child(2) .tracks-preview'); return Array.from(rows).some(row => row.textContent && !/Focus|Loading|Select/.test(row.textContent)); });
+  await p2.waitForFunction(() => { const rows = document.querySelectorAll('.tracks-col:nth-child(2) .tracks-description'); return Array.from(rows).some(row => row.textContent.includes('Downloaded subtitle')); });
   if (process.env.TV_TRACKS_SCREENSHOT) await p2.screenshot({ path: process.env.TV_TRACKS_SCREENSHOT });
   await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('back'); });
   const watchedRequest = p2.waitForResponse(r => r.url().includes('/UserPlayedItems/') && r.request().method() === 'POST');
@@ -398,15 +398,11 @@ try {
   assert.equal(await p2.locator('.screen.trailer').count(), 0);
 
 
-  // Highlight-only embedded preview: no AVPlay subtitle callback and no OK press.
+  // Embedded picker descriptions must not trigger media scans or select on highlight.
   let previewRequests = 0;
   await p2.route('**/SubtitlePreview?*', async route => {
     previewRequests++;
-    if (previewRequests > 1) { await route.fulfill({ status: 503, json: { Message: 'Unavailable' } }); return; }
-    await route.fulfill({ json: { Tracks: [
-      { index: 2, lang: 'eng', cues: [{ start: 30000, end: 33000, text: 'English from before the playhead' }, { start: 80000, end: 83000, text: 'English from later' }] },
-      { index: 3, lang: 'nor', cues: [{ start: 48000, end: 51000, text: 'Norsk fra neste replikk' }] },
-    ] } });
+    await route.abort();
   });
   await p2.evaluate(async () => {
     window.previewSelections = [];
@@ -429,15 +425,14 @@ try {
   });
   await p2.waitForFunction(() => document.querySelector('.av-object') && !document.querySelector('.screen.player:last-child .spinner.on'));
   await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('down'); top().onKey('left'); top().onKey('right'); });
-  await p2.waitForFunction(() => Array.from(document.querySelectorAll('.tracks-preview')).some(el => el.textContent === 'Norsk fra neste replikk'));
-  assert.equal(await p2.locator('.tracks-preview').filter({ hasText: 'English from before the playhead' }).count(), 1);
+  assert.equal(await p2.locator('.tracks-description').filter({ hasText: 'In this video' }).count(), 2);
   assert.deepEqual(await p2.evaluate(() => window.previewSelections), [['TEXT', 0]], 'anime English default is selected after playback starts');
   await p2.evaluate(() => window.subtitleListener.onsubtitlechange(60000, 'Automatically selected English dialogue'));
   assert.equal(await p2.locator('.subs').last().textContent(), 'Automatically selected English dialogue');
   const selectedBefore = await p2.evaluate(() => JSON.stringify(window.previewSelections));
   await p2.evaluate(async () => { const { top } = await import('/js/router.js'); top().onKey('down'); });
   assert.equal(await p2.evaluate(() => JSON.stringify(window.previewSelections)), selectedBefore, 'highlighting never changes the active track');
-  assert.equal(previewRequests, 1, 'all embedded tracks share a cached request');
+  assert.equal(previewRequests, 0, 'highlighting must not request previews');
   await p2.evaluate(async () => {
     const { top } = await import('/js/router.js'); top().onKey('enter');
     window.subtitleListener.onsubtitlechange(60000, 'Active embedded dialogue');
@@ -447,8 +442,8 @@ try {
     window.previewTime = 120000;
     const { top } = await import('/js/router.js'); top().onKey('down');
   });
-  await p2.waitForFunction(() => Array.from(document.querySelectorAll('.tracks-preview')).some(el => el.textContent === 'Preview unavailable'));
-  assert.equal(await p2.locator('.subs').last().textContent(), 'Active embedded dialogue', 'failed preview leaves active dialogue intact');
+  assert.equal(previewRequests, 0, 'reopening at another position must not request previews');
+  assert.equal(await p2.locator('.subs').last().textContent(), 'Active embedded dialogue', 'reopening leaves active dialogue intact');
   await p2.evaluate(async () => {
     window.failSelect = true;
     const { top } = await import('/js/router.js'); top().onKey('up'); top().onKey('enter');

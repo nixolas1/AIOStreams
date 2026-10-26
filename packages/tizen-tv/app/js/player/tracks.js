@@ -59,10 +59,18 @@ export function audioLabel(track, n) {
 export function subtitleLabel(stream, n) {
   const lang = langName(stream.lang || stream.Language);
   const title = String(stream.title || stream.Title || stream.DisplayTitle || '').trim();
-  let out = lang;
-  if (title && (!lang || title.toLowerCase().indexOf(lang.toLowerCase()) < 0)) out = out ? out + '  ·  ' + title : title;
-  else if (title && /sdh|forced|commentary|signs|songs/i.test(title)) out = out + '  ·  ' + (/sdh/i.test(title) ? 'SDH' : /forced/i.test(title) ? 'Forced' : title);
-  return out || 'Subtitle ' + n;
+  if (title) return lang && title.toLowerCase().indexOf(lang.toLowerCase()) < 0 ? lang + '  ·  ' + title : title;
+  return lang || 'Subtitle ' + n;
+}
+
+/** Only describe supplied metadata; an unmarked track is not necessarily full dialogue. */
+export function subtitleDescription(stream, kind) {
+  const title = String(stream.title || stream.Title || stream.DisplayTitle || '');
+  const parts = [kind === 'emb' ? 'In this video' : 'Downloaded subtitle'];
+  if (stream.IsForced || stream.forced || /forced|signs|songs/i.test(title)) parts.push('Forced / signs & songs');
+  if (stream.IsHearingImpaired || stream.hearingImpaired || /\b(sdh|cc)\b|hearing.impaired/i.test(title)) parts.push('SDH / sound captions');
+  if (stream.IsDefault || stream.default) parts.push('Default');
+  return parts.join('  ·  ');
 }
 
 /**
@@ -112,7 +120,7 @@ export function createTracksPanel(handlers) {
     el.appendChild(wrap);
     cols.push({ wrap: wrap, track: track, rows: [] });
   }
-  const hint = h('div', 'tracks-hint', 'OK select   ·   Back close');
+  const hint = h('div', 'tracks-hint', 'OK select & watch   ·   Down during playback reopens tracks   ·   Back close');
   el.appendChild(hint);
 
   function build() {
@@ -121,7 +129,7 @@ export function createTracksPanel(handlers) {
       t.textContent = '';
       cols[c].rows = [];
       for (let i = 0; i < lists[c].length; i++) {
-        const row = h('div', 'tracks-opt', [h('span', 'tracks-mark', lists[c][i].on ? '✓' : ''), h('div', 'tracks-copy', [h('div', 'tracks-label', lists[c][i].label), h('div', 'tracks-preview', lists[c][i].preview || '')])]);
+        const row = h('div', 'tracks-opt', [h('span', 'tracks-mark', lists[c][i].on ? '✓' : ''), h('div', 'tracks-copy', [h('div', 'tracks-label', lists[c][i].label), h('div', 'tracks-description', lists[c][i].description || '')])]);
         t.appendChild(row);
         cols[c].rows.push(row);
       }
@@ -139,16 +147,7 @@ export function createTracksPanel(handlers) {
     }
   }
 
-  function focused() {
-    if (handlers && handlers.onFocus) handlers.onFocus(col, idx[col]);
-  }
-
   return {
-    setPreview: function (index, text) {
-      const row = cols[1].rows[index];
-      const preview = row && row.querySelector('.tracks-preview');
-      if (preview && preview.textContent !== text) preview.textContent = text;
-    },
     el: el,
     isOpen: function () { return isOpen; },
     open: function (data) {
@@ -159,7 +158,6 @@ export function createTracksPanel(handlers) {
       el.classList.remove('hidden');
       isOpen = true;
       paint();
-      focused();
     },
     close: function () {
       if (!isOpen) return;
@@ -181,7 +179,6 @@ export function createTracksPanel(handlers) {
         return true;
       }
       paint();
-      focused();
       return true;
     },
   };

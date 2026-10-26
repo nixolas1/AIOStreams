@@ -276,9 +276,9 @@ Chrome 76 rules apply. Images always go through `ui/images.js`; all tiles throug
   by current popularity, filtering episode dates and original network metadata.
 - Legacy `/Discover/RegionalShows` remains available to old clients during rollout.
 
-## Track picker previews
+## Track picker
 
 - Audio labels retain AVPlay titles and channels and normalize MIME codecs; unknown languages use numbered tracks.
-- Subtitle rows show nearest downloaded SRT/VTT dialogue when focused. Embedded text rows request nearby packets when focused, using only the exact file URL captured from an actual successful playback redirect. An unresolved URL is refused instead of re-running source failover. Highlighting a row shows the nearest available cue before or after playback without selecting a track or waiting for a live subtitle callback. The server probes a bounded 90-second window on each side, coalesces requests per 30-second bucket, and caches briefly; bitmap subtitles have no text preview. Full container-order track counts must match before previews are displayed. Preview caches reset on source changes.
+- Subtitle dialogue previews are disabled: focusing rows never downloads subtitles or requests server media scans. Numbered labels preserve complete supplied track/release titles. Descriptions identify in-video versus downloaded tracks, and forced/signs, SDH and default flags when supplied; missing flags do not imply full dialogue. OK selects and returns to playback; Down reopens the picker with the active track selected. Per-series subtitle preferences remain unchanged.
 
 - Discover and select AVPlay tracks only after `play()` enters PLAYING; asynchronous prepare leaves READY, where normal file track selection is unsupported. Failed selections retain the active subtitle state and are not saved.

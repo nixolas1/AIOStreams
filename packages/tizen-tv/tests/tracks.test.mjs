@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseAudio, isUndecodable, langCode, sameLang, audioLabel, subtitleLabel } from '../app/js/player/tracks.js';
+import { chooseAudio, isUndecodable, langCode, sameLang, audioLabel, subtitleLabel, subtitleDescription } from '../app/js/player/tracks.js';
 
 const A = (id, lang, codec) => ({ id, lang, codec });
 
@@ -45,7 +45,15 @@ test('language codes', () => {
 test('labels', () => {
   assert.equal(audioLabel(A(1, 'eng', 'EAC3'), 1), 'English  ·  DD+');
   assert.equal(audioLabel(A(2, '', ''), 2), 'Track 2');
-  assert.equal(subtitleLabel({ Language: 'eng', DisplayTitle: 'English (SRT)' }, 1), 'English');
-  assert.equal(subtitleLabel({ Language: 'eng', Title: 'English SDH' }, 1), 'English  ·  SDH');
+  assert.equal(subtitleLabel({ Language: 'eng', DisplayTitle: 'English (SRT)' }, 1), 'English (SRT)');
+  assert.equal(subtitleLabel({ Language: 'eng', Title: 'English SDH' }, 1), 'English SDH');
   assert.equal(subtitleLabel({}, 3), 'Subtitle 3');
+});
+
+
+test('subtitle labels retain release names and descriptors distinguish supplied flags', () => {
+  assert.equal(subtitleLabel({ Language: 'eng', Title: 'English [Group A] Full Dialogue' }, 1), 'English [Group A] Full Dialogue');
+  assert.equal(subtitleDescription({ IsForced: true }, 'emb'), 'In this video  ·  Forced / signs & songs');
+  assert.equal(subtitleDescription({ Title: 'English SDH', IsDefault: true }, 'ext'), 'Downloaded subtitle  ·  SDH / sound captions  ·  Default');
+  assert.equal(subtitleDescription({}, 'emb'), 'In this video');
 });

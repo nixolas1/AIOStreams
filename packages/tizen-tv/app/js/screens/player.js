@@ -17,10 +17,10 @@ import { setScreenSaver, isUhdPanel } from '../platform/tizen.js';
 import { episodeLabel } from '../util/format.js';
 import { toast } from '../ui/toast.js';
 import { pickSource, nextSource, nameLines, isUhd, rankSources } from '../player/pick.js';
-import { parseCues, readSubtitleResponse, nearestCue, CueTrack, stripTags, SUBTITLE_SIZES, SUBTITLE_SIZE_LABELS, subtitleSize } from '../player/subtitles.js';
+import { parseCues, readSubtitleResponse, CueTrack, stripTags, SUBTITLE_SIZES, SUBTITLE_SIZE_LABELS, subtitleSize } from '../player/subtitles.js';
 import { Seeker, COMMIT_MS } from '../player/seek.js';
 import { createOsd } from '../player/osd.js';
-import { createTracksPanel, chooseAudio, audioLabel, subtitleLabel, langCode } from '../player/tracks.js';
+import { createTracksPanel, chooseAudio, audioLabel, subtitleLabel, subtitleDescription, langCode } from '../player/tracks.js';
 
 const TICKS_PER_MS = 10000;
 const PROGRESS_MS = 10000;
@@ -107,7 +107,7 @@ export function PlayerScreen(args) {
   }
   const errorBox = h('div', 'player-error hidden');
   const upnext = h('div', 'upnext hidden');
-  const panel = createTracksPanel({ onFocus: previewFocused,
+  const panel = createTracksPanel({
     onChoose: choose,
     onClose: function () { if (!paused) osd.show(); },
   });
@@ -152,11 +152,6 @@ export function PlayerScreen(args) {
   let cueFor = '';
   let subTimer = 0;
   let embTimer = 0;
-  let embeddedPreview = null;
-  let embeddedPreviewBucket = -1;
-  let embeddedPreviewPending = null;
-  let embeddedPreviewError = false;
-  let previewCues = {};
 
   let progressTimer = 0;
   let commitTimer = 0;
@@ -408,18 +403,13 @@ export function PlayerScreen(args) {
     audioTracks = [];
     embeddedText = [];
     subList = [];
-    embeddedPreview = null;
-    embeddedPreviewBucket = -1;
-    embeddedPreviewPending = null;
-    embeddedPreviewError = false;
-    previewCues = {};
   }
 
   function rebuildSubList() {
     const list = [];
     for (let i = 0; i < embeddedText.length; i++) {
-      list.push({ id: 'emb:' + embeddedText[i].id, kind: 'emb', ordinal: i, lang: embeddedText[i].lang, ref: embeddedText[i],
-        label: subtitleLabel(embeddedText[i], i + 1) + '  ·  embedded' });
+      list.push({ id: 'emb:' + embeddedText[i].id, kind: 'emb', lang: embeddedText[i].lang, ref: embeddedText[i],
+        label: subtitleLabel(embeddedText[i], i + 1) });
     }
     const ext = externalSubtitles(current);
     for (let i = 0; i < ext.length; i++) {
@@ -497,74 +487,12 @@ export function PlayerScreen(args) {
     }, SUBTITLE_POLL_MS);
   }
 
-  function loadEmbeddedPreviews() {
-    if (!current || !embeddedText.length) return;
-    const bucket = Math.floor(player.time() / 30000);
-    if (embeddedPreviewPending || (embeddedPreview && embeddedPreviewBucket === bucket)) return;
-    const mine = gen;
-    embeddedPreviewBucket = bucket;
-    embeddedPreviewError = false;
-    embeddedPreview = null;
-    const pending = client.get('/Videos/' + encodeURIComponent(item.Id) + '/' + encodeURIComponent(current.Id) + '/SubtitlePreview', { PositionMs: player.time() });
-    embeddedPreviewPending = pending;
-    pending.then(function (result) {
-      if (!alive || mine !== gen || embeddedPreviewPending !== pending) return;
-      embeddedPreviewPending = null;
-      // Both APIs enumerate subtitle streams in container order. Never apply a partial list.
-      if (!result || !result.Tracks || result.Tracks.length !== embeddedText.length) {
-        embeddedPreviewError = true;
-      } else {
-        embeddedPreview = result.Tracks;
-      }
-      if (panel.isOpen()) refreshPreviews();
-    }, function () {
-      if (!alive || mine !== gen || embeddedPreviewPending !== pending) return;
-      embeddedPreviewPending = null;
-      embeddedPreviewError = true;
-      if (panel.isOpen()) refreshPreviews();
-    });
-  }
-
-  function previewText(opt) {
-    if (opt.kind === 'emb') {
-      const track = embeddedPreview && embeddedPreview[opt.ordinal];
-      if (track) return nearestCue(track.cues || [], player.time()) || 'No nearby text subtitle';
-      return embeddedPreviewError ? 'Preview unavailable' : embeddedPreviewPending ? 'Loading nearby dialogue…' : 'Focus to preview dialogue';
-    }
-    const cues = previewCues[opt.id];
-    return cues ? (nearestCue(cues, player.time()) || 'No text preview available') : 'Focus to preview dialogue';
-  }
-
-  function refreshPreviews() {
-    if (!panelData) return;
-    panelData.subs.forEach(function (row, i) {
-      if (row.ref) panel.setPreview(i, previewText(row.ref));
-    });
-  }
-
-  function previewFocused(col, index) {
-    const row = panelData && panelData.subs[index];
-    if (col !== 1 || !row || !row.ref) return;
-    if (row.ref.kind === 'emb') { loadEmbeddedPreviews(); refreshPreviews(); return; }
-    const opt = row.ref;
-    if (previewCues[opt.id]) { refreshPreviews(); return; }
-    const mine = gen;
-    panel.setPreview(index, 'Loading dialogue…');
-    fetch(subtitleHref(opt.ref)).then(function (r) { if (!r.ok) throw new Error('subtitle'); return readSubtitleResponse(r); }).then(function (txt) {
-      if (!alive || mine !== gen) return;
-      previewCues[opt.id] = parseCues(txt);
-      if (panel.isOpen()) refreshPreviews();
-    }, function () {
-      if (alive && mine === gen && panel.isOpen()) panel.setPreview(index, 'Preview unavailable');
-    });
-  }
-
   function openPanel() {
     if (!current) return;
     const cur = player.currentAudio();
     const audio = audioTracks.map(function (a, i) { return { label: audioLabel(a, i + 1), on: a.id === cur, ref: a }; });
     const subs = [{ label: 'Off', on: subId === 'off', ref: null }];
-    for (let i = 0; i < subList.length; i++) subs.push({ preview: previewText(subList[i]), label: subList[i].label, on: subList[i].id === subId, ref: subList[i] });
+    for (let i = 0; i < subList.length; i++) subs.push({ description: subtitleDescription(subList[i].ref, subList[i].kind), label: (i + 1) + '. ' + subList[i].label, on: subList[i].id === subId, ref: subList[i] });
     osd.hide();
     const size = subtitleSize(store.get('player.subSize', 46));
     const sizes = SUBTITLE_SIZES.map(function (px, i) { return { label: SUBTITLE_SIZE_LABELS[i], on: px === size, ref: px }; });

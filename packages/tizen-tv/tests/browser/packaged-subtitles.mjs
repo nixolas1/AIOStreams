@@ -35,8 +35,7 @@ try {
  let previewRequests=0;
  await page.route('**/SubtitlePreview?*',async route=>{
    previewRequests++;
-   const response=await page.request.get('http://127.0.0.1:8791/jellyfin/Videos/item/source/SubtitlePreview?PositionMs='+new URL(route.request().url()).searchParams.get('PositionMs'));
-   await route.fulfill({response});
+   await route.abort();
  });
  await page.goto(origin);
  console.log('packaged: boot');
@@ -56,8 +55,10 @@ try {
  assert.equal(await page.locator('.subs').last().textContent(),'English playback dialogue');
  assert.equal(previewRequests,0,'no automatic media read on playback startup');
  await page.keyboard.press('ArrowDown');
- await page.waitForFunction(()=>Array.from(document.querySelectorAll('.tracks-preview')).some(n=>n.textContent==='English ahead, with commas'));
- assert.equal(await page.locator('.tracks-preview').filter({hasText:'Norsk tekst fremover'}).count(),1);
+ await page.waitForSelector('.tracks:not(.hidden)');
+ assert.equal(await page.locator('.tracks-description').filter({hasText:'In this video'}).count(),2);
+ assert.equal(await page.locator('.tracks-label').filter({hasText:'1. English'}).count(),1);
+ assert.equal(await page.locator('.tracks-label').filter({hasText:'2. Norwegian'}).count(),1);
  await page.keyboard.press('ArrowDown');
  assert.deepEqual(await page.evaluate(()=>window.testCalls),[['TEXT',0]],'focus does not select');
  assert.equal(await page.locator('.subs').last().textContent(),'English playback dialogue');
@@ -65,7 +66,8 @@ try {
  await page.keyboard.press('Enter');
  await page.evaluate(()=>window.emitDialogue());
  assert.equal(await page.locator('.subs').last().textContent(),'Norsk avspilling');
+ assert.equal(previewRequests,0,'picker must never scan the video for previews');
  assert.deepEqual(errors,[]);
  await page.screenshot({path:'/tmp/tv-packaged-subtitle-playback.png'});
- console.log('PASS: production bundle, automatic English rendering, real endpoint dialogue previews, focus isolation, manual subtitle switch');
+ console.log('PASS: production bundle, automatic English rendering, track descriptions without preview requests, focus isolation, manual subtitle switch');
 } finally { await browser.close(); server.close(); }

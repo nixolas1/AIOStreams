@@ -56,6 +56,9 @@ document.addEventListener('keydown', function (e) {
   if (!action) return;
   const ae = document.activeElement;
   const typing = ae && ae.tagName === 'INPUT';
+  // Samsung IME Delete emits Backspace. Its desktop navigation alias must
+  // not cancel the field or prevent the browser's native text deletion.
+  if (typing && e.keyCode === 8) return;
   if (typing && !FROM_INPUT[action]) return;
   e.preventDefault();
   stats.keyAt = performance.now();

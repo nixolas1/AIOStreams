@@ -9,6 +9,7 @@
     "check": "node scripts/check-legacy.mjs app",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/browser/smoke.mjs",
+    "test:keyboard": "node tests/browser/keyboard.mjs",
     "build": "node scripts/build.mjs"
   }
 }

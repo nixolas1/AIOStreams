@@ -23,6 +23,8 @@ Everything here exists and is tested unless marked (stub). Chrome 76 rules apply
 red green yellow blue info imedone imecancel longenter`. left/right/up/down are coalesced
 to one per animation frame; holding sets `html.fast` (`input.isFast()`).
 A focused `<input>` only forwards `back up down enter imedone imecancel`.
+Backspace (keyCode 8, including the Samsung IME Delete key) keeps its native text-editing
+behavior while an input is focused; remote Return (10009) and Escape still cancel editing.
 Desktop: arrows, Enter, Esc/Backspace=back, Space=playpause, PageUp/PageDown.
 `input.inject(action)` feeds an action programmatically.
 OK outside a text field acts on release: `enter` on keyup, or `longenter` once it has been held ~450 ms (the
